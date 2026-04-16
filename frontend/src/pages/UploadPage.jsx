@@ -1,7 +1,7 @@
 
 import { useState } from 'react'
 import DocumentUploader from '../components/DocumentUploader'
-// import DocumentCard from '../components/DocumentCard'
+import DocumentCard from '../components/DocumentCard'
 
 export default function UploadPage() {
   const [documents, setDocuments] = useState([])
@@ -24,9 +24,9 @@ export default function UploadPage() {
           <h2 style={{ marginBottom: 16, fontSize: 18 }}>
             Uploaded Documents ({documents.length})
           </h2>
-          {/* {documents.map(doc => (
+          {documents.map(doc => (
             <DocumentCard key={doc.id} doc={doc} />
-          ))} */}
+          ))}
         </div>
       )}
 

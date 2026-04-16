@@ -5,10 +5,13 @@ from config import Config
 from models.database import db
 from routes.upload import upload_bp
 import os
+from routes.extract import extract_bp
+
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    app.register_blueprint(extract_bp)
 
     CORS(app)  # Allow React frontend to call this API
     db.init_app(app)
