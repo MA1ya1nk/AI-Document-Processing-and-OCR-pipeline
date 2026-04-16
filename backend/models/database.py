@@ -1,3 +1,4 @@
+
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
@@ -10,8 +11,8 @@ class Document(db.Model):
     file_path = db.Column(db.String(500), nullable=False)
     file_size = db.Column(db.Integer)
     mime_type = db.Column(db.String(100))
-    status = db.Column(db.String(50), default='uploaded')  
-    doc_type = db.Column(db.String(100))                   
+    status = db.Column(db.String(50), default='uploaded')
+    doc_type = db.Column(db.String(100))
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -27,12 +28,11 @@ class Document(db.Model):
         }
 
 
-
 class ExtractionResult(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     document_id = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=False)
     raw_text = db.Column(db.Text)
-    detections = db.Column(db.Text)          # JSON string of detection list
-    preprocessing_steps = db.Column(db.Text) # JSON list of steps applied
-    extracted_fields = db.Column(db.Text)    # JSON — filled in Phase 3
+    detections = db.Column(db.Text)           # JSON list — OCR bboxes
+    preprocessing_steps = db.Column(db.Text)  # JSON list
+    extracted_fields = db.Column(db.Text)     # JSON dict — structured output
     created_at = db.Column(db.DateTime, default=datetime.utcnow)        

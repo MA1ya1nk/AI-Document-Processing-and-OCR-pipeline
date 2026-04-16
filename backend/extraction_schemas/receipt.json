@@ -1,0 +1,14 @@
+{
+    "doc_type": "receipt",
+    "fields": [
+      { "key": "merchant_name",   "label": "Merchant name",   "type": "string"   },
+      { "key": "date",            "label": "Date",            "type": "date"     },
+      { "key": "time",            "label": "Time",            "type": "string"   },
+      { "key": "subtotal",        "label": "Subtotal",        "type": "currency" },
+      { "key": "tax",             "label": "Tax",             "type": "currency" },
+      { "key": "total",           "label": "Total",           "type": "currency" },
+      { "key": "payment_method",  "label": "Payment method",  "type": "string"   },
+      { "key": "items",           "label": "Items",           "type": "table",
+        "columns": ["name", "quantity", "price"] }
+    ]
+  }

@@ -1,0 +1,13 @@
+{
+    "doc_type": "business_card",
+    "fields": [
+      { "key": "full_name",   "label": "Full name",   "type": "string" },
+      { "key": "job_title",   "label": "Job title",   "type": "string" },
+      { "key": "company",     "label": "Company",     "type": "string" },
+      { "key": "email",       "label": "Email",       "type": "string" },
+      { "key": "phone",       "label": "Phone",       "type": "string" },
+      { "key": "address",     "label": "Address",     "type": "string" },
+      { "key": "website",     "label": "Website",     "type": "string" },
+      { "key": "linkedin",    "label": "LinkedIn",    "type": "string" }
+    ]
+  }

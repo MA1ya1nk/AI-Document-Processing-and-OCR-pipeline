@@ -1,0 +1,12 @@
+{
+    "doc_type": "id_card",
+    "fields": [
+      { "key": "full_name",     "label": "Full name",     "type": "string" },
+      { "key": "date_of_birth", "label": "Date of birth", "type": "date"   },
+      { "key": "id_number",     "label": "ID number",     "type": "string" },
+      { "key": "nationality",   "label": "Nationality",   "type": "string" },
+      { "key": "gender",        "label": "Gender",        "type": "string" },
+      { "key": "issue_date",    "label": "Issue date",    "type": "date"   },
+      { "key": "expiry_date",   "label": "Expiry date",   "type": "date"   }
+    ]
+  }

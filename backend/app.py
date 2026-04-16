@@ -4,22 +4,19 @@ from flask_cors import CORS
 from config import Config
 from models.database import db
 from routes.upload import upload_bp
-import os
 from routes.extract import extract_bp
-
+import os
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    CORS(app)
+    db.init_app(app)
+    app.register_blueprint(upload_bp)
     app.register_blueprint(extract_bp)
 
-    CORS(app)  # Allow React frontend to call this API
-    db.init_app(app)
-
-    app.register_blueprint(upload_bp)
-
     with app.app_context():
-        db.create_all()  # Creates tables if they don't exist
+        db.create_all()
 
     return app
 
