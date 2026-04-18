@@ -1,7 +1,7 @@
 
 from flask import Blueprint, request, jsonify
 import os, uuid
-from models.database import db, Document
+from models.database import db, Document, ExtractionResult   
 from config import Config
 
 upload_bp = Blueprint('upload', __name__)
@@ -46,7 +46,43 @@ def upload_file():
     return jsonify({'message': 'File uploaded successfully', 'document': doc.to_dict()}), 201
 
 
+# @upload_bp.route('/api/documents', methods=['GET'])
+# def list_documents():
+#     docs = Document.query.order_by(Document.uploaded_at.desc()).all()
+#     return jsonify({'documents': [d.to_dict() for d in docs]})
+
+
 @upload_bp.route('/api/documents', methods=['GET'])
 def list_documents():
+    """Return all documents with their extraction results if available."""
     docs = Document.query.order_by(Document.uploaded_at.desc()).all()
-    return jsonify({'documents': [d.to_dict() for d in docs]})
+    result_list = []
+    for doc in docs:
+        d = doc.to_dict()
+        ex = ExtractionResult.query.filter_by(document_id=doc.id).first()
+        if ex:
+            import json
+            d['has_extraction'] = True
+            d['extracted_fields'] = json.loads(ex.extracted_fields or '{}')
+            d['detections'] = json.loads(ex.detections or '[]')
+            d['preprocessing_steps'] = json.loads(ex.preprocessing_steps or '[]')
+            d['raw_text'] = ex.raw_text or ''
+        else:
+            d['has_extraction'] = False
+        result_list.append(d)
+    return jsonify({'documents': result_list})    
+
+
+
+@upload_bp.route('/api/documents/<int:doc_id>', methods=['DELETE'])
+def delete_document(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    ex = ExtractionResult.query.filter_by(document_id=doc_id).first()
+    if ex:
+        db.session.delete(ex)
+    # delete file from disk
+    if os.path.exists(doc.file_path):
+        os.remove(doc.file_path)
+    db.session.delete(doc)
+    db.session.commit()
+    return jsonify({'deleted': True})

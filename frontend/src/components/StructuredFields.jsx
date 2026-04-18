@@ -1,21 +1,19 @@
-// src/components/StructuredFields.jsx
+
 import { useState } from 'react'
 import { updateFields } from '../services/api'
 
-const CONFIDENCE_STYLE = {
+const CONF_STYLE = {
   high:   { bg: '#dcfce7', color: '#166534' },
   medium: { bg: '#fef9c3', color: '#854d0e' },
   low:    { bg: '#fee2e2', color: '#991b1b' },
 }
 
-function FieldRow({ fieldKey, label, data, onSave }) {
+function FieldRow({ fieldKey, data, onSave }) {
   const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(data?.value ?? '')
-  const conf = data?.confidence || 'medium'
-  const style = CONFIDENCE_STYLE[conf] || CONFIDENCE_STYLE.medium
+  const [value, setValue]     = useState(data?.value ?? '')
+  const conf      = data?.confidence || 'medium'
   const corrected = data?.manually_corrected
 
-  // Tables get rendered separately
   if (Array.isArray(data?.value)) return null
 
   return (
@@ -24,7 +22,9 @@ function FieldRow({ fieldKey, label, data, onSave }) {
       padding: '10px 0', borderBottom: '1px solid #f3f4f6'
     }}>
       <div style={{ width: 160, flexShrink: 0 }}>
-        <span style={{ fontSize: 12, color: '#6b7280' }}>{label}</span>
+        <span style={{ fontSize: 12, color: '#6b7280' }}>
+          {fieldKey.replace(/_/g, ' ')}
+        </span>
       </div>
 
       <div style={{ flex: 1 }}>
@@ -41,15 +41,19 @@ function FieldRow({ fieldKey, label, data, onSave }) {
             />
             <button
               onClick={() => { onSave(fieldKey, value); setEditing(false) }}
-              style={{ background: '#2563eb', color: '#fff', border: 'none',
-                       borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12 }}
+              style={{
+                background: '#2563eb', color: '#fff', border: 'none',
+                borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12
+              }}
             >
               Save
             </button>
             <button
               onClick={() => { setValue(data?.value ?? ''); setEditing(false) }}
-              style={{ background: '#e5e7eb', color: '#374151', border: 'none',
-                       borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}
+              style={{
+                background: '#e5e7eb', color: '#374151', border: 'none',
+                borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12
+              }}
             >
               Cancel
             </button>
@@ -61,18 +65,24 @@ function FieldRow({ fieldKey, label, data, onSave }) {
               onClick={() => setEditing(true)}
               title="Click to edit"
             >
-              {value || <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>not found</span>}
+              {value
+                ? String(value)
+                : <span style={{ color: '#d1d5db', fontStyle: 'italic' }}>not found</span>
+              }
             </span>
             {corrected && (
-              <span style={{ fontSize: 11, color: '#7c3aed', fontStyle: 'italic' }}>edited</span>
+              <span style={{ fontSize: 11, color: '#7c3aed', fontStyle: 'italic' }}>
+                edited
+              </span>
             )}
           </div>
         )}
       </div>
 
       <span style={{
-        padding: '2px 8px', borderRadius: 20, fontSize: 11,
-        background: style.bg, color: style.color, flexShrink: 0
+        padding: '2px 8px', borderRadius: 20, fontSize: 11, flexShrink: 0,
+        background: CONF_STYLE[conf]?.bg || '#f3f4f6',
+        color: CONF_STYLE[conf]?.color || '#374151'
       }}>
         {conf}
       </span>
@@ -80,14 +90,16 @@ function FieldRow({ fieldKey, label, data, onSave }) {
   )
 }
 
-function TableField({ label, data }) {
+function TableField({ fieldKey, data }) {
   const rows = data?.value
-  if (!rows || !rows.length) return null
+  if (!rows || !Array.isArray(rows) || rows.length === 0) return null
   const headers = Object.keys(rows[0])
 
   return (
-    <div style={{ marginTop: 16 }}>
-      <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>{label}</p>
+    <div style={{ marginTop: 16, marginBottom: 16 }}>
+      <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px', fontWeight: 500 }}>
+        {fieldKey.replace(/_/g, ' ').toUpperCase()}
+      </p>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
@@ -95,10 +107,11 @@ function TableField({ label, data }) {
               {headers.map(h => (
                 <th key={h} style={{
                   padding: '6px 10px', background: '#f1f5f9',
-                  borderBottom: '1px solid #e2e8f0', textAlign: 'left',
-                  fontSize: 12, color: '#475569', fontWeight: 500
+                  borderBottom: '1px solid #e2e8f0',
+                  textAlign: 'left', fontSize: 12,
+                  color: '#475569', fontWeight: 500
                 }}>
-                  {h}
+                  {h.replace(/_/g, ' ')}
                 </th>
               ))}
             </tr>
@@ -108,7 +121,9 @@ function TableField({ label, data }) {
               <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
                 {headers.map(h => (
                   <td key={h} style={{
-                    padding: '6px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155'
+                    padding: '6px 10px',
+                    borderBottom: '1px solid #f1f5f9',
+                    color: '#334155'
                   }}>
                     {row[h] ?? ''}
                   </td>
@@ -123,8 +138,8 @@ function TableField({ label, data }) {
 }
 
 export default function StructuredFields({ docId, fields, schema }) {
-  const [localFields, setLocalFields] = useState(fields)
-  const [saving, setSaving] = useState(false)
+  const [localFields, setLocalFields] = useState(fields || {})
+  const [saving, setSaving]           = useState(false)
 
   const handleSave = async (fieldKey, newValue) => {
     setSaving(true)
@@ -137,11 +152,20 @@ export default function StructuredFields({ docId, fields, schema }) {
     setSaving(false)
   }
 
-  if (!fields || !schema) return null
+  // If no fields at all
+  if (!localFields || Object.keys(localFields).length === 0) {
+    return (
+      <p style={{ color: '#9ca3af', fontSize: 13, fontStyle: 'italic' }}>
+        No extracted fields available.
+      </p>
+    )
+  }
 
-  const schemaFields = schema.fields || []
-  const tableFields = schemaFields.filter(f => f.type === 'table')
-  const scalarFields = schemaFields.filter(f => f.type !== 'table')
+  // Split into scalar fields and table fields
+  // Works with OR without schema — reads directly from fields object
+  const allEntries    = Object.entries(localFields)
+  const scalarEntries = allEntries.filter(([, v]) => !Array.isArray(v?.value))
+  const tableEntries  = allEntries.filter(([, v]) => Array.isArray(v?.value) && v.value.length > 0)
 
   return (
     <div>
@@ -151,24 +175,19 @@ export default function StructuredFields({ docId, fields, schema }) {
 
       {/* Scalar fields */}
       <div>
-        {scalarFields.map(f => (
+        {scalarEntries.map(([key, data]) => (
           <FieldRow
-            key={f.key}
-            fieldKey={f.key}
-            label={f.label}
-            data={localFields[f.key]}
+            key={key}
+            fieldKey={key}
+            data={data}
             onSave={handleSave}
           />
         ))}
       </div>
 
       {/* Table fields */}
-      {tableFields.map(f => (
-        <TableField
-          key={f.key}
-          label={f.label}
-          data={localFields[f.key]}
-        />
+      {tableEntries.map(([key, data]) => (
+        <TableField key={key} fieldKey={key} data={data} />
       ))}
     </div>
   )

@@ -53,3 +53,19 @@ def to_excel_bytes(doc, extraction_result):
     wb.save(buf)
     buf.seek(0)
     return buf.read()
+
+
+def bulk_to_csv(documents_with_results):
+    """One row per document, key fields as columns."""
+    import csv, io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['id', 'filename', 'doc_type', 'status', 'uploaded_at', 'extracted_fields_json'])
+    for item in documents_with_results:
+        writer.writerow([
+            item.get('id'), item.get('original_filename'),
+            item.get('doc_type'), item.get('status'),
+            item.get('uploaded_at'),
+            str(item.get('extracted_fields', {}))
+        ])
+    return output.getvalue()    

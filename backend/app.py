@@ -5,6 +5,8 @@ from config import Config
 from models.database import db
 from routes.upload import upload_bp
 from routes.extract import extract_bp
+from routes.batch import batch_bp
+
 import os
 
 def create_app():
@@ -14,6 +16,7 @@ def create_app():
     db.init_app(app)
     app.register_blueprint(upload_bp)
     app.register_blueprint(extract_bp)
+    app.register_blueprint(batch_bp)
 
     with app.app_context():
         db.create_all()
