@@ -7,6 +7,8 @@ from openai import OpenAI
 
 SCHEMAS_DIR = os.path.join(os.path.dirname(__file__), '..', 'extraction_schemas')
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+REQUEST_TIMEOUT_SECONDS = int(os.environ.get("MISTRAL_TIMEOUT_SECONDS", "600"))
+MAX_RETRIES = int(os.environ.get("MISTRAL_MAX_RETRIES", "5"))
 
 def _load_schema(doc_type):
     path = os.path.join(SCHEMAS_DIR, f'{doc_type}.json')
@@ -76,7 +78,7 @@ def _extract_json_text(text):
     return text
 
 
-def _create_chat_completion_with_retry(client, payload, max_attempts=4):
+def _create_chat_completion_with_retry(client, payload, max_attempts=MAX_RETRIES):
     wait_seconds = 2
     for attempt in range(max_attempts):
         try:
@@ -128,7 +130,11 @@ Rules:
 def extract_fields(image_path, doc_type, ocr_raw_text=''):
     api_key = os.environ["MISTRAL_API_KEY"]
     model = os.environ.get("MISTRAL_MODEL", "pixtral-12b-2409")
-    client = OpenAI(api_key=api_key, base_url="https://api.mistral.ai/v1")
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.mistral.ai/v1",
+        timeout=REQUEST_TIMEOUT_SECONDS
+    )
 
     schema = _load_schema(doc_type)
     prompt = _build_prompt(schema, ocr_raw_text)
@@ -172,7 +178,11 @@ def extract_fields_pages(image_path, doc_type, ocr_text_pages, ocr_raw_text=''):
     """Extract one structured output per page and a merged document output."""
     api_key = os.environ["MISTRAL_API_KEY"]
     model = os.environ.get("MISTRAL_MODEL", "pixtral-12b-2409")
-    client = OpenAI(api_key=api_key, base_url="https://api.mistral.ai/v1")
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.mistral.ai/v1",
+        timeout=REQUEST_TIMEOUT_SECONDS
+    )
     schema = _load_schema(doc_type)
 
     pages_b64, mime_type = _file_to_base64_pages(image_path)

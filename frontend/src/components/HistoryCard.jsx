@@ -1,7 +1,9 @@
 // src/components/HistoryCard.jsx
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { deleteDocument } from '../services/api'
 import ExportPanel from './ExportPanel'
+import ErrorMessage from './ErrorMessage'
 
 const STATUS_STYLE = {
   uploaded:   { bg: '#e0f2fe', color: '#0369a1' },
@@ -29,14 +31,16 @@ export default function HistoryCard({ doc, onDeleted }) {
   const navigate = useNavigate()
   const badge = STATUS_STYLE[doc.status] || STATUS_STYLE.uploaded
   const icon = TYPE_ICONS[doc.doc_type] || '📁'
+  const [error, setError] = useState('')
 
   const handleDelete = async () => {
+    setError('')
     if (!confirm(`Delete ${doc.original_filename}?`)) return
     try {
       await deleteDocument(doc.id)
       onDeleted(doc.id)
     } catch (err) {
-      alert('Delete failed: ' + err.message)
+      setError('Delete failed: ' + (err.response?.data?.error || err.message))
     }
   }
 
@@ -89,6 +93,7 @@ export default function HistoryCard({ doc, onDeleted }) {
 
       {/* Main content */}
       <div style={{ flex: 1, minWidth: 0 }}>
+        <ErrorMessage message={error} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <strong style={{
             fontSize: 14, overflow: 'hidden',

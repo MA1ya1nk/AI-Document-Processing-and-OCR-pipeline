@@ -1,22 +1,26 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { uploadDocument } from '../services/api'
+import ErrorMessage from './ErrorMessage'
 
 export default function DocumentUploader({ onUploaded }) {
+  const [error, setError] = useState('')
+
   const onDrop = useCallback(async (acceptedFiles) => {
+    setError('')
     for (const file of acceptedFiles) {
       try {
         const res = await uploadDocument(file)
         onUploaded(res.data.document)
       } catch (err) {
-        alert('Upload failed: ' + (err.response?.data?.error || err.message))
+        setError('Upload failed: ' + (err.response?.data?.error || err.message))
       }
     }
   }, [onUploaded])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': [], 'application/pdf': [] },
+    accept: { 'image/*': [], 'application/pdf': [], 'application/x-pdf': [], '.pdf': [] },
     multiple: true
   })
 
@@ -34,6 +38,7 @@ export default function DocumentUploader({ onUploaded }) {
       }}
     >
       <input {...getInputProps()} />
+      <ErrorMessage message={error} />
       <p style={{ fontSize: 18, color: '#555', margin: 0 }}>
         {isDragActive ? 'Drop it!' : 'Drop documents here, or click to browse'}
       </p>

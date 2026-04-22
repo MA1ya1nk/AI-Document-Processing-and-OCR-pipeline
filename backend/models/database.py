@@ -54,7 +54,8 @@ class Document(db.Model):
             'status': self.status,
             'doc_type': self.doc_type,
             'uploaded_at': to_utc_iso(self.uploaded_at),
-            'batch_id': self.batch_id
+            'batch_id': self.batch_id,
+            'error_message': self.error_message
         }
 
 

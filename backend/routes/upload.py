@@ -10,6 +10,14 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
+def allowed_upload(file_obj):
+    """Allow by extension first, with MIME fallback for PDF clients."""
+    filename = file_obj.filename or ''
+    if allowed_file(filename):
+        return True
+    mime = (file_obj.content_type or '').lower()
+    return mime in {'application/pdf', 'application/x-pdf'}
+
 @upload_bp.route('/api/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
@@ -20,7 +28,7 @@ def upload_file():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
-    if not allowed_file(file.filename):
+    if not allowed_upload(file):
         return jsonify({'error': 'File type not allowed'}), 400
 
     # Generate a unique filename to avoid collisions

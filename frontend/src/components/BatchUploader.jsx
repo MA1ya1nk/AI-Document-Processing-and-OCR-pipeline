@@ -1,12 +1,14 @@
 // src/components/BatchUploader.jsx
 import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { uploadBatch, getBatchStatus } from '../services/api'
+import { uploadBatch } from '../services/api'
+import ErrorMessage from './ErrorMessage'
 
 export default function BatchUploader({ onBatchStarted }) {
   const [files, setFiles]     = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [error, setError] = useState('')
 
   const onDrop = useCallback((accepted) => {
     setFiles(accepted)
@@ -14,7 +16,7 @@ export default function BatchUploader({ onBatchStarted }) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': [], 'application/pdf': [] },
+    accept: { 'image/*': [], 'application/pdf': [], 'application/x-pdf': [], '.pdf': [] },
     multiple: true
   })
 
@@ -22,26 +24,25 @@ export default function BatchUploader({ onBatchStarted }) {
     if (!files.length) return
     setUploading(true)
     setUploadProgress(0)
+    setError('')
 
     const form = new FormData()
     files.forEach(f => form.append('files', f))
 
     try {
-      const res = await fetch('http://localhost:5000/api/upload/batch', {
-        method: 'POST',
-        body: form
-      })
-      const data = await res.json()
+      const res = await uploadBatch(files)
+      const data = res.data
       onBatchStarted(data.batch_id, data.documents)
       setFiles([])
     } catch (err) {
-      alert('Batch upload failed: ' + err.message)
+      setError('Batch upload failed: ' + (err.response?.data?.error || err.message))
     }
     setUploading(false)
   }
 
   return (
     <div>
+      <ErrorMessage message={error} />
       <div
         {...getRootProps()}
         style={{

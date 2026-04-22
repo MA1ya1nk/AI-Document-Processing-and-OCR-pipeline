@@ -13,6 +13,8 @@ SUPPORTED_TYPES = [
 ]
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+REQUEST_TIMEOUT_SECONDS = int(os.environ.get("MISTRAL_TIMEOUT_SECONDS", "600"))
+MAX_RETRIES = int(os.environ.get("MISTRAL_MAX_RETRIES", "5"))
 
 def _file_to_base64_png(image_path):
     """Same helper — converts PDF or image to PNG base64."""
@@ -53,7 +55,7 @@ def _extract_json_text(text):
     return text
 
 
-def _create_chat_completion_with_retry(client, payload, max_attempts=4):
+def _create_chat_completion_with_retry(client, payload, max_attempts=MAX_RETRIES):
     wait_seconds = 2
     for attempt in range(max_attempts):
         try:
@@ -70,7 +72,11 @@ def _create_chat_completion_with_retry(client, payload, max_attempts=4):
 def classify_document(image_path):
     api_key = os.environ["MISTRAL_API_KEY"]
     model = os.environ.get("MISTRAL_MODEL", "pixtral-12b-2409")
-    client = OpenAI(api_key=api_key, base_url="https://api.mistral.ai/v1")
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.mistral.ai/v1",
+        timeout=REQUEST_TIMEOUT_SECONDS
+    )
 
     prompt = f"""Classify this document into exactly one of these categories:
 {', '.join(SUPPORTED_TYPES)}

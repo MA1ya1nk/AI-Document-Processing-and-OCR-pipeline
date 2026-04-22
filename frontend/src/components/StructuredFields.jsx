@@ -1,6 +1,7 @@
 
 import { useState } from 'react'
 import { updateFields } from '../services/api'
+import ErrorMessage from './ErrorMessage'
 
 const CONF_STYLE = {
   high:   { bg: '#dcfce7', color: '#166534' },
@@ -140,14 +141,16 @@ function TableField({ fieldKey, data }) {
 export default function StructuredFields({ docId, fields, schema }) {
   const [localFields, setLocalFields] = useState(fields || {})
   const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState('')
 
   const handleSave = async (fieldKey, newValue) => {
+    setError('')
     setSaving(true)
     try {
       const res = await updateFields(docId, { [fieldKey]: newValue })
       setLocalFields(res.data.fields)
     } catch (err) {
-      alert('Save failed: ' + err.message)
+      setError('Save failed: ' + (err.response?.data?.error || err.message))
     }
     setSaving(false)
   }
@@ -169,6 +172,7 @@ export default function StructuredFields({ docId, fields, schema }) {
 
   return (
     <div>
+      <ErrorMessage message={error} />
       {saving && (
         <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 8px' }}>Saving...</p>
       )}

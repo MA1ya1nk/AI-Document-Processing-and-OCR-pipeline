@@ -7,6 +7,13 @@ import os, uuid, json, io, zipfile
 
 batch_bp = Blueprint('batch', __name__)
 
+def _allowed_upload(file_obj, allowed_exts):
+    filename = file_obj.filename or ''
+    if '.' in filename and filename.rsplit('.', 1)[-1].lower() in allowed_exts:
+        return True
+    mime = (file_obj.content_type or '').lower()
+    return mime in {'application/pdf', 'application/x-pdf'}
+
 
 @batch_bp.route('/api/upload/batch', methods=['POST'])
 def upload_batch():
@@ -27,9 +34,11 @@ def upload_batch():
     for file in files:
         if not file.filename:
             continue
+        if not _allowed_upload(file, allowed):
+            continue
         ext = file.filename.rsplit('.', 1)[-1].lower()
         if ext not in allowed:
-            continue
+            ext = 'pdf' if (file.content_type or '').lower() in {'application/pdf', 'application/x-pdf'} else ext
 
         unique_name = f"{uuid.uuid4().hex}.{ext}"
         file_path = os.path.join(Config.UPLOAD_FOLDER, unique_name)

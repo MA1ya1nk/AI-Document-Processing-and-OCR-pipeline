@@ -2,7 +2,8 @@
 // src/services/api.js
 import axios from 'axios'
 
-const BASE = 'http://localhost:5000'
+const BASE = import.meta.env.VITE_API_BASE_URL
+console.log('BASE', BASE)
 
 export const uploadDocument = (file) => {
   const form = new FormData()
@@ -15,6 +16,9 @@ export const classifyDocument = (docId) =>
 
 export const extractDocument = (docId, docType = null) =>
   axios.post(`${BASE}/api/extract/${docId}`, docType ? { doc_type: docType } : {})
+
+export const getExtractStatus = (docId) =>
+  axios.get(`${BASE}/api/extract/${docId}/status`)
 
 export const updateFields = (docId, corrections) =>
   axios.put(`${BASE}/api/documents/${docId}/fields`, corrections)

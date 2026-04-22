@@ -1,10 +1,11 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { classifyDocument, extractDocument } from '../services/api'
+import { classifyDocument, extractDocument, getExtractStatus } from '../services/api'
 import ExtractionResults from './ExtractionResults'
 import BboxPreview from './BboxPreview'
 import ExportPanel from './ExportPanel'
+import ErrorMessage from './ErrorMessage'
 
 const DOC_TYPES = [
   'invoice', 'receipt', 'business_card', 'form',
@@ -28,31 +29,62 @@ export default function DocumentCard({ doc }) {
   const [classifying, setClassifying] = useState(false)
   const [extracting, setExtracting]   = useState(false)
   const [showBoxes, setShowBoxes]     = useState(false)
+  const [error, setError]             = useState('')
+
+  const applyExtractedResult = (payload) => {
+    setResult(payload)
+    setDocType(payload.doc_type || docType)
+    setStatus('extracted')
+  }
 
   const handleClassify = async () => {
+    setError('')
     setClassifying(true)
     try {
       const res = await classifyDocument(doc.id)
       setDocType(res.data.doc_type)
     } catch (err) {
-      alert('Classification failed: ' + err.message)
+      setError('Classification failed: ' + (err.response?.data?.error || err.message))
     }
     setClassifying(false)
   }
 
   const handleExtract = async () => {
+    setError('')
     setExtracting(true)
     setStatus('processing')
     try {
-      const res = await extractDocument(doc.id, typeOverride || docType || null)
-      setResult(res.data)
-      setDocType(res.data.doc_type)
-      setStatus('extracted')
+      await extractDocument(doc.id, typeOverride || docType || null)
+      const maxAttempts = 180
+      const pollDelayMs = 2000
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, pollDelayMs))
+        const pollRes = await getExtractStatus(doc.id)
+        const { status, result: extractedResult, error_message: errorMessage, doc_type: polledDocType } = pollRes.data
+
+        if (polledDocType) setDocType(polledDocType)
+
+        if (status === 'extracted' && extractedResult) {
+          applyExtractedResult(extractedResult)
+          return
+        }
+
+        if (status === 'error') {
+          setStatus('error')
+          setError('Extraction failed: ' + (errorMessage || 'Unknown processing error'))
+          return
+        }
+      }
+
+      setStatus('error')
+      setError('Extraction timed out while waiting for background processing.')
     } catch (err) {
       setStatus('error')
-      alert('Extraction failed: ' + (err.response?.data?.error || err.message))
+      setError('Extraction failed: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setExtracting(false)
     }
-    setExtracting(false)
   }
 
   const badge = STATUS_STYLE[status] || STATUS_STYLE.uploaded
@@ -62,6 +94,7 @@ export default function DocumentCard({ doc }) {
       border: '1px solid #e5e7eb', borderRadius: 10,
       padding: 16, marginBottom: 14
     }}>
+      <ErrorMessage message={error} />
 
       {/* Top row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
