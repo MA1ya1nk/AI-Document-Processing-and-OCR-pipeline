@@ -78,15 +78,33 @@ def batch_status(batch_id):
         d = doc.to_dict()
         ex = ExtractionResult.query.filter_by(document_id=doc.id).first()
         if ex:
-            d['extracted_fields']    = json.loads(ex.extracted_fields or '{}')
-            d['raw_text']            = ex.raw_text or ''
-            d['detections']          = json.loads(ex.detections or '[]')
-            d['preprocessing_steps'] = json.loads(ex.preprocessing_steps or '[]')
+            extracted_payload = json.loads(ex.extracted_fields or '{}')
+            raw_payload = json.loads(ex.raw_text or '{}') if (ex.raw_text or '').startswith('{') else {'full_text': ex.raw_text or '', 'pages': []}
+            detections_payload = json.loads(ex.detections or '[]')
+            preprocessing_payload = json.loads(ex.preprocessing_steps or '[]')
+
+            if isinstance(extracted_payload, dict) and 'document' in extracted_payload:
+                d['extracted_fields'] = extracted_payload.get('document') or {}
+                d['page_results'] = extracted_payload.get('pages') or []
+            else:
+                d['extracted_fields'] = extracted_payload
+                d['page_results'] = [{
+                    'page_index': 0,
+                    'ocr_text': raw_payload.get('full_text', ''),
+                    'extracted_fields': extracted_payload
+                }]
+
+            d['raw_text'] = raw_payload.get('full_text', '')
+            d['page_texts'] = raw_payload.get('pages', [])
+            d['detections'] = detections_payload
+            d['preprocessing_steps'] = preprocessing_payload
         else:
             d['extracted_fields']    = {}
             d['raw_text']            = ''
             d['detections']          = []
             d['preprocessing_steps'] = []
+            d['page_results']        = []
+            d['page_texts']          = []
         docs_out.append(d)
 
     return jsonify({
@@ -126,11 +144,13 @@ def export_batch(batch_id):
             doc = Document.query.get(doc_id)
             ex = ExtractionResult.query.filter_by(document_id=doc_id).first()
             if doc and ex:
+                payload = json.loads(ex.extracted_fields or '{}')
+                fields = payload.get('document', payload) if isinstance(payload, dict) else {}
                 data = {
                     'document_id': doc.id,
                     'filename': doc.original_filename,
                     'doc_type': doc.doc_type,
-                    'fields': json.loads(ex.extracted_fields or '{}')
+                    'fields': fields
                 }
                 zf.writestr(
                     f'{doc.original_filename}_{doc_id}.json',

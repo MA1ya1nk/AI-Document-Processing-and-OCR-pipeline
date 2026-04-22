@@ -17,6 +17,14 @@ const TYPE_ICONS = {
   whiteboard: '🖊️', table_spreadsheet: '📊'
 }
 
+const formatUtcTimestamp = (isoLike) => {
+  if (!isoLike) return ''
+  const hasTimezone = /([zZ]|[+\-]\d{2}:\d{2})$/.test(isoLike)
+  const normalized = hasTimezone ? isoLike : `${isoLike}Z`
+  const parsed = new Date(normalized)
+  return Number.isNaN(parsed.getTime()) ? String(isoLike) : parsed.toLocaleString()
+}
+
 export default function HistoryCard({ doc, onDeleted }) {
   const navigate = useNavigate()
   const badge = STATUS_STYLE[doc.status] || STATUS_STYLE.uploaded
@@ -64,6 +72,8 @@ export default function HistoryCard({ doc, onDeleted }) {
       padding: 16,
       background: '#fff',
       display: 'flex',
+      width: '100%',
+      boxSizing: 'border-box',
       gap: 16,
       alignItems: 'flex-start'
     }}>
@@ -104,7 +114,7 @@ export default function HistoryCard({ doc, onDeleted }) {
 
         {/* Date + size */}
         <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0 8px' }}>
-          {new Date(doc.uploaded_at).toLocaleString()} ·{' '}
+          {formatUtcTimestamp(doc.uploaded_at)} ·{' '}
           {(doc.file_size / 1024).toFixed(1)} KB
         </p>
 

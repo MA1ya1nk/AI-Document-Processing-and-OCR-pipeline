@@ -21,9 +21,13 @@ function DocResultPanel({ doc }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const [showImg, setShowImg]   = useState(false)
+  const [pageIndex, setPageIndex] = useState(0)
 
   const colors = STATUS_COLOR[doc.status] || STATUS_COLOR.uploaded
-  const fields = doc.extracted_fields || {}
+  const pageResults = doc.page_results || []
+  const currentPageResult = pageResults.find(p => p.page_index === pageIndex)
+  const fields = (currentPageResult?.extracted_fields || doc.extracted_fields || {})
+  const totalPages = pageResults.length > 0 ? pageResults.length : 1
   const scalarFields = Object.entries(fields).filter(
     ([, v]) => v?.value !== null && v?.value !== undefined && !Array.isArray(v?.value)
   )
@@ -124,8 +128,29 @@ function DocResultPanel({ doc }) {
       {/* ── Annotated image ── */}
       {showImg && doc.status === 'extracted' && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <button
+                onClick={() => setPageIndex(p => Math.max(0, p - 1))}
+                disabled={pageIndex === 0}
+                style={smallBtn(pageIndex === 0 ? '#9ca3af' : '#475569')}
+              >
+                Prev page
+              </button>
+              <span style={{ fontSize: 12, color: '#6b7280', alignSelf: 'center' }}>
+                Page {pageIndex + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPageIndex(p => Math.min(totalPages - 1, p + 1))}
+                disabled={pageIndex >= totalPages - 1}
+                style={smallBtn(pageIndex >= totalPages - 1 ? '#9ca3af' : '#475569')}
+              >
+                Next page
+              </button>
+            </div>
+          )}
           <img
-            src={getPreviewUrl(doc.id)}
+            src={getPreviewUrl(doc.id, pageIndex)}
             alt="annotated"
             style={{ width: '100%', borderRadius: 8, border: '1px solid #e5e7eb' }}
           />
@@ -143,7 +168,7 @@ function DocResultPanel({ doc }) {
           {scalarFields.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 8px', fontWeight: 500 }}>
-                EXTRACTED FIELDS
+                EXTRACTED FIELDS{totalPages > 1 ? ` (Page ${pageIndex + 1})` : ''}
               </p>
               {scalarFields.map(([key, data]) => (
                 <div key={key} style={{

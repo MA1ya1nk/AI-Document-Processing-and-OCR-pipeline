@@ -4,6 +4,11 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+def to_utc_iso(dt):
+    if not dt:
+        return None
+    return f"{dt.isoformat()}Z"
+
 
 class Batch(db.Model):
     id              = db.Column(db.Integer, primary_key=True)
@@ -22,7 +27,7 @@ class Batch(db.Model):
                 (self.processed_count / self.total_count * 100)
                 if self.total_count else 0, 1
             ),
-            'created_at': self.created_at.isoformat()
+            'created_at': to_utc_iso(self.created_at)
         }
 
 
@@ -48,7 +53,7 @@ class Document(db.Model):
             'mime_type': self.mime_type,
             'status': self.status,
             'doc_type': self.doc_type,
-            'uploaded_at': self.uploaded_at.isoformat(),
+            'uploaded_at': to_utc_iso(self.uploaded_at),
             'batch_id': self.batch_id
         }
 

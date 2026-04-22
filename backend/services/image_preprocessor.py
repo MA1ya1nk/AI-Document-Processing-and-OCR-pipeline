@@ -3,6 +3,28 @@ import cv2
 import numpy as np
 import os
 
+def _pdf_pages_to_images(file_path):
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        raise ValueError("PyMuPDF not installed. Run: pip install pymupdf")
+
+    pdf_doc = fitz.open(file_path)
+    pages = []
+    for i in range(len(pdf_doc)):
+        page = pdf_doc[i]
+        mat = fitz.Matrix(2.0, 2.0)
+        pix = page.get_pixmap(matrix=mat)
+        img_data = pix.tobytes("png")
+        nparr = np.frombuffer(img_data, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            pdf_doc.close()
+            raise ValueError(f"Could not decode PDF page {i + 1} from {file_path}")
+        pages.append(img)
+    pdf_doc.close()
+    return pages
+
 def load_image(file_path):
     """Load image from disk. If PDF, convert first page to image first."""
     ext = file_path.rsplit('.', 1)[-1].lower()
@@ -102,3 +124,36 @@ def preprocess(file_path, steps=None):
             steps_applied.append(step)
 
     return img, steps_applied
+
+
+def preprocess_pages(file_path, steps=None):
+    """Preprocess every page for PDFs; return single-page list for images."""
+    ext = file_path.rsplit('.', 1)[-1].lower()
+    if steps is None:
+        steps = ['deskew', 'denoise', 'enhance_contrast', 'binarize']
+
+    pipeline = {
+        'deskew': deskew,
+        'denoise': denoise,
+        'enhance_contrast': enhance_contrast,
+        'binarize': binarize,
+    }
+
+    if ext == 'pdf':
+        source_pages = _pdf_pages_to_images(file_path)
+    else:
+        source_pages = [load_image(file_path)]
+
+    processed_pages = []
+    pages_steps = []
+    for img in source_pages:
+        applied = []
+        page_img = img
+        for step in steps:
+            if step in pipeline:
+                page_img = pipeline[step](page_img)
+                applied.append(step)
+        processed_pages.append(page_img)
+        pages_steps.append(applied)
+
+    return processed_pages, pages_steps

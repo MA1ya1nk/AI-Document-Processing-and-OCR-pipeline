@@ -25,8 +25,8 @@ export const listDocuments = () =>
 export const getDocument = (docId) =>
   axios.get(`${BASE}/api/documents/${docId}`)
 
-export const getPreviewUrl = (docId) =>
-  `${BASE}/api/documents/${docId}/preview?t=${Date.now()}`
+export const getPreviewUrl = (docId, page = 0) =>
+  `${BASE}/api/documents/${docId}/preview?page=${page}&t=${Date.now()}`
 
 export const getExportUrl = (docId, format) =>
   `${BASE}/api/export/${docId}?format=${format}`

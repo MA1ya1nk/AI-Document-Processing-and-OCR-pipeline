@@ -1,7 +1,9 @@
 
-from google import genai
-from google.genai import types
-import base64, json, os
+import base64
+import json
+import os
+import time
+from openai import OpenAI
 
 SUPPORTED_TYPES = [
     "invoice", "receipt", "business_card",
@@ -9,6 +11,8 @@ SUPPORTED_TYPES = [
     "report_letter", "handwritten_note",
     "whiteboard", "table_spreadsheet"
 ]
+
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 def _file_to_base64_png(image_path):
     """Same helper — converts PDF or image to PNG base64."""
@@ -34,8 +38,39 @@ def _file_to_base64_png(image_path):
     return base64.b64encode(data).decode('utf-8'), mime
 
 
+def _extract_json_text(text):
+    text = (text or "").strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        if len(parts) > 1:
+            text = parts[1].strip()
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end >= start:
+        return text[start:end + 1]
+    return text
+
+
+def _create_chat_completion_with_retry(client, payload, max_attempts=4):
+    wait_seconds = 2
+    for attempt in range(max_attempts):
+        try:
+            return client.chat.completions.create(**payload)
+        except Exception as e:
+            status_code = getattr(e, "status_code", None)
+            is_last_attempt = attempt == max_attempts - 1
+            if status_code not in RETRYABLE_STATUS_CODES or is_last_attempt:
+                raise
+            time.sleep(wait_seconds)
+            wait_seconds *= 2
+
+
 def classify_document(image_path):
-    client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+    api_key = os.environ["MISTRAL_API_KEY"]
+    model = os.environ.get("MISTRAL_MODEL", "pixtral-12b-2409")
+    client = OpenAI(api_key=api_key, base_url="https://api.mistral.ai/v1")
 
     prompt = f"""Classify this document into exactly one of these categories:
 {', '.join(SUPPORTED_TYPES)}
@@ -51,24 +86,27 @@ Do not include any text outside the JSON."""
 
     image_b64, mime_type = _file_to_base64_png(image_path)
 
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=[
-            types.Part.from_bytes(
-                data=base64.b64decode(image_b64),
-                mime_type=mime_type          # image/png for PDFs now
-            ),
-            prompt
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime_type};base64,{image_b64}"},
+                    },
+                ],
+            }
         ]
-    )
+    }
+    response = _create_chat_completion_with_retry(client, payload)
 
-    text = response.text.strip()
-    if text.startswith('```'):
-        text = text.split('```')[1]
-        if text.startswith('json'):
-            text = text[4:]
+    text = response.choices[0].message.content or ""
+    json_text = _extract_json_text(text)
 
-    result = json.loads(text.strip())
+    result = json.loads(json_text.strip())
 
     if result.get('doc_type') not in SUPPORTED_TYPES:
         result['doc_type'] = 'form'

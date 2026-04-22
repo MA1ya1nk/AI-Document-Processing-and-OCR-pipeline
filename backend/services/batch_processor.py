@@ -3,10 +3,10 @@ import threading
 import json
 import traceback  # ← add this
 from models.database import db, Document, ExtractionResult, Batch, BatchItem
-from services.image_preprocessor import preprocess
-from services.ocr_engine import extract_text, get_full_text
+from services.image_preprocessor import preprocess, preprocess_pages
+from services.ocr_engine import extract_text, get_full_text, extract_text_pages, get_full_text_pages
 from services.document_classifier import classify_document
-from services.vision_extractor import extract_fields
+from services.vision_extractor import extract_fields, extract_fields_pages
 
 
 def process_batch_item(app, doc_id):
@@ -18,31 +18,56 @@ def process_batch_item(app, doc_id):
             doc.status = 'processing'
             db.session.commit()
 
-            preprocessed_img, steps = preprocess(doc.file_path)
-            detections = extract_text(preprocessed_img)
-            full_text = get_full_text(detections)
+            ext = doc.file_path.rsplit('.', 1)[-1].lower()
+            if ext == 'pdf':
+                preprocessed_pages, pages_steps = preprocess_pages(doc.file_path)
+                detections_pages = extract_text_pages(preprocessed_pages)
+                page_texts, full_text = get_full_text_pages(detections_pages)
+                detections = {"pages": detections_pages}
+                steps = {"pages": pages_steps}
+            else:
+                preprocessed_img, steps_list = preprocess(doc.file_path)
+                detections_list = extract_text(preprocessed_img)
+                full_text = get_full_text(detections_list)
+                detections = detections_list
+                steps = steps_list
+                page_texts = [full_text]
 
             if not doc.doc_type:
                 classification = classify_document(doc.file_path)
                 doc.doc_type = classification['doc_type']
 
-            structured_fields, schema = extract_fields(
-                doc.file_path, doc.doc_type, full_text
-            )
+            if ext == 'pdf':
+                structured_fields, schema, page_results = extract_fields_pages(
+                    doc.file_path, doc.doc_type, ocr_text_pages=page_texts, ocr_raw_text=full_text
+                )
+            else:
+                structured_fields, schema = extract_fields(doc.file_path, doc.doc_type, full_text)
+                page_results = [{
+                    "page_index": 0,
+                    "ocr_text": full_text,
+                    "extracted_fields": structured_fields
+                }]
 
             ex = ExtractionResult.query.filter_by(document_id=doc_id).first()
             if ex:
-                ex.raw_text = full_text
+                ex.raw_text = json.dumps({"full_text": full_text, "pages": page_texts})
                 ex.detections = json.dumps(detections)
                 ex.preprocessing_steps = json.dumps(steps)
-                ex.extracted_fields = json.dumps(structured_fields)
+                ex.extracted_fields = json.dumps({
+                    "document": structured_fields,
+                    "pages": page_results
+                })
             else:
                 ex = ExtractionResult(
                     document_id=doc_id,
-                    raw_text=full_text,
+                    raw_text=json.dumps({"full_text": full_text, "pages": page_texts}),
                     detections=json.dumps(detections),
                     preprocessing_steps=json.dumps(steps),
-                    extracted_fields=json.dumps(structured_fields)
+                    extracted_fields=json.dumps({
+                        "document": structured_fields,
+                        "pages": page_results
+                    })
                 )
                 db.session.add(ex)
 

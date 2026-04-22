@@ -12,8 +12,8 @@ export default function BatchPage() {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-      <h1 style={{ marginBottom: 4 }}>Batch processing</h1>
-      <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>
+      <h1 style={{ margin: '0 0 9px', lineHeight: 1.2 }}>Batch processing</h1>
+      <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>
         Upload many documents at once. Processing happens in the background.
       </p>
 

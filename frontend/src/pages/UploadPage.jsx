@@ -12,8 +12,8 @@ export default function UploadPage() {
 
   return (
     <div style={{ maxWidth: 760, margin: '40px auto', padding: '0 20px' }}>
-      <h1 style={{ marginBottom: 8 }}>Document Processor</h1>
-      <p style={{ color: '#6b7280', marginBottom: 28, fontSize: 14 }}>
+      <h1 style={{ margin: '0 0 9px', lineHeight: 1.2 }}>Document Processor</h1>
+      <p style={{ color: '#6b7280', margin: '0 0 28px', fontSize: 14, lineHeight: 1.5 }}>
         Upload images or PDFs — extract text with OCR and bounding box visualization.
       </p>
 

@@ -26,11 +26,13 @@ export default function HistoryPage() {
     setDocuments(prev => prev.filter(d => d.id !== docId))
   }
 
+  const normalizeValue = (value) => String(value || '').trim().toLowerCase()
+
   const filtered = documents.filter(doc => {
     const matchSearch = doc.original_filename
       .toLowerCase().includes(search.toLowerCase())
-    const matchType   = !filterType   || doc.doc_type === filterType
-    const matchStatus = !filterStatus || doc.status === filterStatus
+    const matchType   = !filterType   || normalizeValue(doc.doc_type) === normalizeValue(filterType)
+    const matchStatus = !filterStatus || normalizeValue(doc.status) === normalizeValue(filterStatus)
     return matchSearch && matchType && matchStatus
   })
 
@@ -40,9 +42,9 @@ export default function HistoryPage() {
   const needsReview = documents.filter(d => d.status === 'uploaded').length
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 20px' }}>
-      <h1 style={{ marginBottom: 4 }}>Document history</h1>
-      <p style={{ color: '#6b7280', marginBottom: 24, fontSize: 14 }}>
+    <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', padding: '24px 20px', boxSizing: 'border-box' }}>
+      <h1 style={{ margin: '0 0 9px', lineHeight: 1.2 }}>Document history</h1>
+      <p style={{ color: '#6b7280', margin: '0 0 24px', fontSize: 14, lineHeight: 1.5 }}>
         All uploaded documents and their extraction results
       </p>
 
@@ -88,9 +90,9 @@ export default function HistoryPage() {
           onChange={e => setFilterType(e.target.value)}
           style={selectStyle}
         >
-          <option value=''>All types</option>
+          <option value='' style={optionStyle}>All types</option>
           {ALL_TYPES.map(t => (
-            <option key={t} value={t}>{t.replace('_', ' ')}</option>
+            <option key={t} value={t} style={optionStyle}>{t.replace('_', ' ')}</option>
           ))}
         </select>
         <select
@@ -98,10 +100,10 @@ export default function HistoryPage() {
           onChange={e => setFilterStatus(e.target.value)}
           style={selectStyle}
         >
-          <option value=''>All statuses</option>
-          <option value='uploaded'>Uploaded</option>
-          <option value='extracted'>Extracted</option>
-          <option value='error'>Error</option>
+          <option value='' style={optionStyle}>All statuses</option>
+          <option value='uploaded' style={optionStyle}>Uploaded</option>
+          <option value='extracted' style={optionStyle}>Extracted</option>
+          <option value='error' style={optionStyle}>Error</option>
         </select>
       </div>
 
@@ -127,7 +129,7 @@ export default function HistoryPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
         {filtered.map(doc => (
           <HistoryCard key={doc.id} doc={doc} onDeleted={handleDeleted} />
         ))}
@@ -138,5 +140,11 @@ export default function HistoryPage() {
 
 const selectStyle = {
   padding: '8px 10px', borderRadius: 8, fontSize: 13,
-  border: '1px solid #d1d5db', cursor: 'pointer', background: '#fff'
+  border: '1px solid #d1d5db', cursor: 'pointer',
+  backgroundColor: '#fff', color: '#111827'
+}
+
+const optionStyle = {
+  backgroundColor: '#fff',
+  color: '#111827'
 }

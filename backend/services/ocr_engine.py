@@ -87,3 +87,14 @@ def confidence_label(score):
 def get_full_text(detections):
    
     return ' '.join(d['text'] for d in detections)
+
+
+def extract_text_pages(images):
+    """Run OCR for each page image and return per-page detections."""
+    return [extract_text(img) for img in images]
+
+
+def get_full_text_pages(detections_pages):
+    """Return per-page text plus combined full text."""
+    page_texts = [get_full_text(dets) for dets in detections_pages]
+    return page_texts, " ".join(t for t in page_texts if t)

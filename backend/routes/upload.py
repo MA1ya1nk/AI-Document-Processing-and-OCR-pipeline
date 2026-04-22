@@ -62,11 +62,19 @@ def list_documents():
         ex = ExtractionResult.query.filter_by(document_id=doc.id).first()
         if ex:
             import json
+            extracted_payload = json.loads(ex.extracted_fields or '{}')
+            raw_payload = json.loads(ex.raw_text or '{}') if (ex.raw_text or '').startswith('{') else {'full_text': ex.raw_text or '', 'pages': []}
             d['has_extraction'] = True
-            d['extracted_fields'] = json.loads(ex.extracted_fields or '{}')
+            if isinstance(extracted_payload, dict) and 'document' in extracted_payload:
+                d['extracted_fields'] = extracted_payload.get('document') or {}
+                d['page_results'] = extracted_payload.get('pages') or []
+            else:
+                d['extracted_fields'] = extracted_payload
+                d['page_results'] = []
             d['detections'] = json.loads(ex.detections or '[]')
             d['preprocessing_steps'] = json.loads(ex.preprocessing_steps or '[]')
-            d['raw_text'] = ex.raw_text or ''
+            d['raw_text'] = raw_payload.get('full_text', '')
+            d['page_texts'] = raw_payload.get('pages', [])
         else:
             d['has_extraction'] = False
         result_list.append(d)

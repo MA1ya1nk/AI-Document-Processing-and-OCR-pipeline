@@ -9,7 +9,7 @@ COLORS = {
     'low':    (239, 68, 68),
 }
 
-def _load_as_pil_image(image_path):
+def _load_as_pil_image(image_path, page=0):
     """
     Load any file (jpg, png, PDF) as a PIL Image.
     For PDFs, render first page using PyMuPDF.
@@ -19,7 +19,8 @@ def _load_as_pil_image(image_path):
     if ext == 'pdf':
         import fitz
         pdf_doc = fitz.open(image_path)
-        page    = pdf_doc[0]
+        page_idx = max(0, min(page, len(pdf_doc) - 1))
+        page = pdf_doc[page_idx]
         mat     = fitz.Matrix(2.0, 2.0)   # 2x zoom for quality
         pix     = page.get_pixmap(matrix=mat)
         pdf_doc.close()
@@ -31,12 +32,12 @@ def _load_as_pil_image(image_path):
     return Image.open(image_path).convert('RGB')
 
 
-def draw_bboxes(image_path, detections):
+def draw_bboxes(image_path, detections, page=0):
     """
     Draw colored bounding boxes on the document image.
     Returns path to annotated temp file.
     """
-    img  = _load_as_pil_image(image_path)
+    img  = _load_as_pil_image(image_path, page=page)
     draw = ImageDraw.Draw(img)
 
     for det in detections:
