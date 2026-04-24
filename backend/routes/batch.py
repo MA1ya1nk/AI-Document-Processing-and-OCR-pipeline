@@ -15,8 +15,54 @@ def _allowed_upload(file_obj, allowed_exts):
     return mime in {'application/pdf', 'application/x-pdf'}
 
 
+def _serialize_batch_documents(batch_id):
+    items = BatchItem.query.filter_by(batch_id=batch_id).all()
+    doc_ids = [i.document_id for i in items]
+    docs = Document.query.filter(Document.id.in_(doc_ids)).all() if doc_ids else []
+    docs_out = []
+    for doc in docs:
+        d = doc.to_dict()
+        ex = ExtractionResult.query.filter_by(document_id=doc.id).first()
+        if ex:
+            extracted_payload = json.loads(ex.extracted_fields or '{}')
+            raw_payload = json.loads(ex.raw_text or '{}') if (ex.raw_text or '').startswith('{') else {'full_text': ex.raw_text or '', 'pages': []}
+            detections_payload = json.loads(ex.detections or '[]')
+            preprocessing_payload = json.loads(ex.preprocessing_steps or '[]')
+
+            if isinstance(extracted_payload, dict) and 'document' in extracted_payload:
+                d['extracted_fields'] = extracted_payload.get('document') or {}
+                d['page_results'] = extracted_payload.get('pages') or []
+            else:
+                d['extracted_fields'] = extracted_payload
+                d['page_results'] = [{
+                    'page_index': 0,
+                    'ocr_text': raw_payload.get('full_text', ''),
+                    'extracted_fields': extracted_payload
+                }]
+
+            d['raw_text'] = raw_payload.get('full_text', '')
+            d['page_texts'] = raw_payload.get('pages', [])
+            d['detections'] = detections_payload
+            d['preprocessing_steps'] = preprocessing_payload
+        else:
+            d['extracted_fields'] = {}
+            d['raw_text'] = ''
+            d['detections'] = []
+            d['preprocessing_steps'] = []
+            d['page_results'] = []
+            d['page_texts'] = []
+        docs_out.append(d)
+    return docs_out
+
+
 @batch_bp.route('/api/upload/batch', methods=['POST'])
 def upload_batch():
+    active_doc = Document.query.filter_by(status='processing').first()
+    if active_doc:
+        return jsonify({
+            'error': 'A batch/document is already processing. Wait for completion before starting another batch.'
+        }), 409
+
     files = request.files.getlist('files')
     if not files:
         return jsonify({'error': 'No files'}), 400
@@ -78,48 +124,23 @@ def upload_batch():
 @batch_bp.route('/api/batch/<int:batch_id>/status', methods=['GET'])
 def batch_status(batch_id):
     batch = Batch.query.get_or_404(batch_id)
-    items = BatchItem.query.filter_by(batch_id=batch_id).all()
-    doc_ids = [i.document_id for i in items]
-    docs = Document.query.filter(Document.id.in_(doc_ids)).all()
-
-    docs_out = []
-    for doc in docs:
-        d = doc.to_dict()
-        ex = ExtractionResult.query.filter_by(document_id=doc.id).first()
-        if ex:
-            extracted_payload = json.loads(ex.extracted_fields or '{}')
-            raw_payload = json.loads(ex.raw_text or '{}') if (ex.raw_text or '').startswith('{') else {'full_text': ex.raw_text or '', 'pages': []}
-            detections_payload = json.loads(ex.detections or '[]')
-            preprocessing_payload = json.loads(ex.preprocessing_steps or '[]')
-
-            if isinstance(extracted_payload, dict) and 'document' in extracted_payload:
-                d['extracted_fields'] = extracted_payload.get('document') or {}
-                d['page_results'] = extracted_payload.get('pages') or []
-            else:
-                d['extracted_fields'] = extracted_payload
-                d['page_results'] = [{
-                    'page_index': 0,
-                    'ocr_text': raw_payload.get('full_text', ''),
-                    'extracted_fields': extracted_payload
-                }]
-
-            d['raw_text'] = raw_payload.get('full_text', '')
-            d['page_texts'] = raw_payload.get('pages', [])
-            d['detections'] = detections_payload
-            d['preprocessing_steps'] = preprocessing_payload
-        else:
-            d['extracted_fields']    = {}
-            d['raw_text']            = ''
-            d['detections']          = []
-            d['preprocessing_steps'] = []
-            d['page_results']        = []
-            d['page_texts']          = []
-        docs_out.append(d)
-
+    docs_out = _serialize_batch_documents(batch_id)
     return jsonify({
         'batch': batch.to_dict(),
         'documents': docs_out
     })
+
+
+@batch_bp.route('/api/batch/active', methods=['GET'])
+def list_active_batches():
+    active_batches = Batch.query.filter(Batch.status != 'done').order_by(Batch.created_at.desc()).all()
+    payload = []
+    for batch in active_batches:
+        payload.append({
+            'batch': batch.to_dict(),
+            'documents': _serialize_batch_documents(batch.id)
+        })
+    return jsonify({'batches': payload})
 
 
 @batch_bp.route('/api/batch/<int:batch_id>/export', methods=['GET'])

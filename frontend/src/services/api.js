@@ -63,6 +63,9 @@ export const uploadBatch = (files) => {
 export const getBatchStatus = (batchId) =>
   axios.get(`${BASE}/api/batch/${batchId}/status`)
 
+export const getActiveBatches = () =>
+  axios.get(`${BASE}/api/batch/active`)
+
 export const getBatchExportUrl = (batchId, format) =>
   `${BASE}/api/batch/${batchId}/export?format=${format}`
 

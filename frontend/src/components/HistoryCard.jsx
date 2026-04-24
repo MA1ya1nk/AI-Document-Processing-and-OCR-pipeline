@@ -48,6 +48,7 @@ export default function HistoryCard({ doc, onDeleted }) {
     if (!doc.has_extraction) return
     navigate(`/document/${doc.id}`, {
       state: {
+        returnTo: '/history',
         doc,
         result: {
           doc_type: doc.doc_type,

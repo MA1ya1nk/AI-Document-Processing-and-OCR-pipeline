@@ -100,13 +100,38 @@ def process_batch_item(app, doc_id):
                 classification = classify_document(doc.file_path)
                 doc.doc_type = classification['doc_type']
 
+            def _write_partial_snapshot(partial_pages, partial_document):
+                ex_row = ExtractionResult.query.filter_by(document_id=doc_id).first()
+                payload = {
+                    "document": partial_document or {},
+                    "pages": partial_pages or []
+                }
+                if ex_row:
+                    ex_row.raw_text = json.dumps({"full_text": full_text, "pages": page_texts})
+                    ex_row.detections = json.dumps(detections)
+                    ex_row.preprocessing_steps = json.dumps(steps)
+                    ex_row.extracted_fields = json.dumps(payload)
+                else:
+                    ex_row = ExtractionResult(
+                        document_id=doc_id,
+                        raw_text=json.dumps({"full_text": full_text, "pages": page_texts}),
+                        detections=json.dumps(detections),
+                        preprocessing_steps=json.dumps(steps),
+                        extracted_fields=json.dumps(payload)
+                    )
+                    db.session.add(ex_row)
+                # Keep document in processing state while partial pages stream in.
+                doc.status = 'processing'
+                db.session.commit()
+
             if ext == 'pdf':
                 structured_fields, schema, page_results = extract_fields_pages(
                     doc.file_path,
                     doc.doc_type,
                     ocr_text_pages=page_texts,
                     ocr_raw_text=full_text,
-                    use_image_input=False
+                    use_image_input=False,
+                    progress_callback=_write_partial_snapshot
                 )
             else:
                 structured_fields, schema = extract_fields(

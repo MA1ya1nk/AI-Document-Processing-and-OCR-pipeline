@@ -334,7 +334,14 @@ def extract_fields(image_path, doc_type, ocr_raw_text='', use_image_input=True):
     return normalised, schema
 
 
-def extract_fields_pages(image_path, doc_type, ocr_text_pages, ocr_raw_text='', use_image_input=True):
+def extract_fields_pages(
+    image_path,
+    doc_type,
+    ocr_text_pages,
+    ocr_raw_text='',
+    use_image_input=True,
+    progress_callback=None
+):
     """Extract one structured output per page and a merged document output."""
     api_key = os.environ["MISTRAL_API_KEY"]
     model = os.environ.get("MISTRAL_MODEL", "pixtral-12b-2409")
@@ -368,6 +375,9 @@ def extract_fields_pages(image_path, doc_type, ocr_text_pages, ocr_raw_text='', 
             all_page_results.extend(page_results)
             if document_fields:
                 document_candidates.append(document_fields)
+            if progress_callback:
+                partial_merged = _merge_field_dicts(document_candidates + [p.get("extracted_fields", {}) for p in all_page_results])
+                progress_callback(all_page_results, partial_merged)
         else:
             for start in range(0, len(page_texts), MULTIPAGE_CHUNK_SIZE):
                 chunk = page_texts[start:start + MULTIPAGE_CHUNK_SIZE]
@@ -382,6 +392,9 @@ def extract_fields_pages(image_path, doc_type, ocr_text_pages, ocr_raw_text='', 
                 all_page_results.extend(page_results)
                 if chunk_document:
                     document_candidates.append(chunk_document)
+                if progress_callback:
+                    partial_merged = _merge_field_dicts(document_candidates + [p.get("extracted_fields", {}) for p in all_page_results])
+                    progress_callback(all_page_results, partial_merged)
 
         all_page_results.sort(key=lambda p: p.get("page_index", 0))
         page_field_dicts = [p.get("extracted_fields", {}) for p in all_page_results]

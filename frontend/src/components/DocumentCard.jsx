@@ -161,7 +161,13 @@ export default function DocumentCard({ doc }) {
           {/* Review page */}
           {result && (
             <button
-              onClick={() => navigate(`/document/${doc.id}`, { state: { result, doc: { ...doc, doc_type: docType } } })}
+              onClick={() => navigate(`/document/${doc.id}`, {
+                state: {
+                  returnTo: '/',
+                  result,
+                  doc: { ...doc, doc_type: docType }
+                }
+              })}
               className="btn btn-teal"
             >
               Review

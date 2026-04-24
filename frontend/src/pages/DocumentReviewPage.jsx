@@ -2,8 +2,8 @@
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import StructuredFields from '../components/StructuredFields'
 import ExportPanel from '../components/ExportPanel'
-import { getPreviewUrl, getPageImageUrl } from '../services/api'
-import { useState } from 'react'
+import { getPreviewUrl, getPageImageUrl, getExtractStatus } from '../services/api'
+import { useEffect, useState } from 'react'
 
 export default function DocumentReviewPage() {
   const { id } = useParams()
@@ -11,28 +11,66 @@ export default function DocumentReviewPage() {
   const navigate = useNavigate()
   const [showAnnotated, setShowAnnotated] = useState(false)
   const [pageIndex, setPageIndex] = useState(0)
+  const handleBack = () => {
+    if (state?.returnTo) {
+      navigate(state.returnTo)
+      return
+    }
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate('/history')
+  }
+  const [liveResult, setLiveResult] = useState(state?.result || null)
+  const [liveStatus, setLiveStatus] = useState(state?.doc?.status || 'extracted')
+  const [liveDocType, setLiveDocType] = useState(state?.doc?.doc_type || state?.result?.doc_type || '')
 
-  if (!state?.result) {
+  useEffect(() => {
+    if (!id || !liveResult) return
+    if (liveStatus === 'extracted' || liveStatus === 'error') return
+
+    const poll = async () => {
+      try {
+        const res = await getExtractStatus(id)
+        const payload = res.data || {}
+        if (payload.status) setLiveStatus(payload.status)
+        if (payload.doc_type) setLiveDocType(payload.doc_type)
+        if (payload.result) {
+          setLiveResult(prev => ({ ...(prev || {}), ...payload.result }))
+        }
+      } catch {
+        // Keep existing rendered data on transient polling failures.
+      }
+    }
+
+    poll()
+    const timer = setInterval(poll, 2000)
+    return () => clearInterval(timer)
+  }, [id, liveResult, liveStatus])
+
+  if (!liveResult) {
     return (
       <div className="page-shell" style={{ maxWidth: 700, textAlign: 'center', marginTop: 32 }}>
         <p style={{ color: '#6b7280' }}>No extraction data. Go back and extract first.</p>
-        <button onClick={() => navigate('/')} className="btn btn-primary" style={{ marginTop: 12 }}>
+        <button onClick={handleBack} className="btn btn-primary" style={{ marginTop: 12 }}>
           Back to upload
         </button>
       </div>
     )
   }
 
-  const { result, doc } = state
-  const pageResults = result.page_results || []
+  const { doc } = state
+  const pageResults = liveResult.page_results || []
   const hasMultiPage = pageResults.length > 1
   const totalPages = pageResults.length > 0 ? pageResults.length : 1
-  const pageResultByIndex = pageResults.find(p => p.page_index === pageIndex)
-  const pageResultByOrder = pageResults[pageIndex]
+  const safePageIndex = Math.min(pageIndex, totalPages - 1)
+  const pageResultByIndex = pageResults.find(p => p.page_index === safePageIndex)
+  const pageResultByOrder = pageResults[safePageIndex]
   const currentPage = pageResultByIndex || pageResultByOrder || null
   const currentFields = hasMultiPage
     ? (currentPage?.extracted_fields || {})
-    : (result.extracted_fields || {})
+    : (liveResult.extracted_fields || {})
 
   return (
     <div className="page-shell" style={{ maxWidth: 1320 }}>
@@ -44,7 +82,7 @@ export default function DocumentReviewPage() {
       }}>
         <div>
           <button
-            onClick={() => navigate('/')}
+            onClick={handleBack}
             style={{ background: 'none', border: 'none', cursor: 'pointer',
                      color: '#64748b', fontSize: 13, padding: 0 }}
           >
@@ -58,8 +96,13 @@ export default function DocumentReviewPage() {
             padding: '2px 10px', borderRadius: 20, fontSize: 12,
             background: '#ede9fe', color: '#5b21b6'
           }}>
-            {doc.doc_type?.replace('_', ' ')}
+            {(liveDocType || doc.doc_type || '').replace('_', ' ')}
           </span>
+          {liveStatus === 'processing' && (
+            <span style={{ marginLeft: 8, fontSize: 12, color: '#92400e' }}>
+              Processing... new pages will appear automatically
+            </span>
+          )}
         </div>
         <ExportPanel docId={id} />
       </div>
@@ -97,20 +140,20 @@ export default function DocumentReviewPage() {
             }}>
               <button
                 onClick={() => setPageIndex(p => Math.max(0, p - 1))}
-                disabled={pageIndex === 0}
+                disabled={safePageIndex === 0}
                 className="btn btn-slate"
-                style={{ padding: '6px 10px', opacity: pageIndex === 0 ? 0.65 : 1 }}
+                style={{ padding: '6px 10px', opacity: safePageIndex === 0 ? 0.65 : 1 }}
               >
                 Prev page
               </button>
               <span style={{ fontSize: 12, color: '#64748b' }}>
-                Page {pageIndex + 1} / {totalPages}
+                Page {safePageIndex + 1} / {totalPages}
               </span>
               <button
                 onClick={() => setPageIndex(p => Math.min(totalPages - 1, p + 1))}
-                disabled={pageIndex >= totalPages - 1}
+                disabled={safePageIndex >= totalPages - 1}
                 className="btn btn-slate"
-                style={{ padding: '6px 10px', opacity: pageIndex >= totalPages - 1 ? 0.65 : 1 }}
+                style={{ padding: '6px 10px', opacity: safePageIndex >= totalPages - 1 ? 0.65 : 1 }}
               >
                 Next page
               </button>
@@ -118,12 +161,12 @@ export default function DocumentReviewPage() {
           )}
           <div style={{ padding: 12, maxHeight: '80vh', overflowY: 'auto' }}>
             <img
-              src={showAnnotated ? getPreviewUrl(id, pageIndex) : getPageImageUrl(id, pageIndex)}
+              src={showAnnotated ? getPreviewUrl(id, safePageIndex) : getPageImageUrl(id, safePageIndex)}
               alt="Document"
               style={{ width: '100%', borderRadius: 8 }}
               onError={e => {
                 // fallback: show annotated if original fails
-                e.target.src = getPreviewUrl(id, pageIndex)
+                e.target.src = getPreviewUrl(id, safePageIndex)
               }}
             />
           </div>
@@ -142,15 +185,15 @@ export default function DocumentReviewPage() {
             <span style={{
               marginLeft: 10, fontSize: 12, color: '#6b7280'
             }}>
-              {hasMultiPage ? `Showing page ${pageIndex + 1} fields` : 'Click any value to edit'}
+              {hasMultiPage ? `Showing page ${safePageIndex + 1} fields` : 'Click any value to edit'}
             </span>
           </div>
           <div style={{ padding: 16, overflowY: 'auto', maxHeight: '80vh' }}>
             <StructuredFields
-              key={`${id}-${pageIndex}`}
+              key={`${id}-${safePageIndex}`}
               docId={id}
               fields={currentFields}
-              schema={result.schema}
+              schema={liveResult.schema}
             />
           </div>
         </div>

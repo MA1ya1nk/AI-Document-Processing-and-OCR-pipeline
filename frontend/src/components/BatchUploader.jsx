@@ -4,14 +4,15 @@ import { useDropzone } from 'react-dropzone'
 import { uploadBatch } from '../services/api'
 import ErrorMessage from './ErrorMessage'
 
-export default function BatchUploader({ onBatchStarted }) {
+export default function BatchUploader({ onBatchStarted, disabled = false, disabledReason = '' }) {
   const [files, setFiles]     = useState([])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
 
   const onDrop = useCallback((accepted) => {
+    if (disabled) return
     setFiles(accepted)
-  }, [])
+  }, [disabled])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -20,6 +21,7 @@ export default function BatchUploader({ onBatchStarted }) {
   })
 
   const handleUpload = async () => {
+    if (disabled) return
     if (!files.length) return
     setUploading(true)
     setError('')
@@ -38,6 +40,19 @@ export default function BatchUploader({ onBatchStarted }) {
   return (
     <div>
       <ErrorMessage message={error} />
+      {disabled && (
+        <div style={{
+          marginBottom: 10,
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          color: '#92400e',
+          borderRadius: 10,
+          padding: '10px 12px',
+          fontSize: 13
+        }}>
+          {disabledReason || 'A batch is currently processing. Please wait until it finishes.'}
+        </div>
+      )}
       <div
         {...getRootProps()}
         style={{
@@ -45,12 +60,13 @@ export default function BatchUploader({ onBatchStarted }) {
           borderRadius: 16,
           padding: 36,
           textAlign: 'center',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.65 : 1,
           background: isDragActive ? '#dbeafe' : '#f8faff',
           boxShadow: '0 8px 24px rgba(37,99,235,0.08)'
         }}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps({ disabled })} />
         <p style={{ fontSize: 18, color: '#2563eb', margin: 0, fontWeight: 700 }}>
           {isDragActive
             ? 'Drop all files!'
@@ -81,7 +97,7 @@ export default function BatchUploader({ onBatchStarted }) {
           </div>
           <button
             onClick={handleUpload}
-            disabled={uploading}
+            disabled={uploading || disabled}
             className="btn btn-primary"
             style={{ marginTop: 10, fontSize: 14 }}
           >

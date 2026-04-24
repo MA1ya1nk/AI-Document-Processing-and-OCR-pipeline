@@ -25,6 +25,7 @@ function DocResultPanel({ doc }) {
 
   const colors = STATUS_COLOR[doc.status] || STATUS_COLOR.uploaded
   const pageResults = doc.page_results || []
+  const hasPageData = pageResults.length > 0
   const currentPageResult = pageResults.find(p => p.page_index === pageIndex)
   const fields = (currentPageResult?.extracted_fields || doc.extracted_fields || {})
   const totalPages = pageResults.length > 0 ? pageResults.length : 1
@@ -47,17 +48,17 @@ function DocResultPanel({ doc }) {
 
       {/* ── Header row ── */}
       <div
-        onClick={() => doc.status === 'extracted' && setExpanded(v => !v)}
+        onClick={() => hasPageData && setExpanded(v => !v)}
         style={{
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', padding: '12px 16px',
           background: colors.bg,
-          cursor: doc.status === 'extracted' ? 'pointer' : 'default'
+          cursor: hasPageData ? 'pointer' : 'default'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Expand arrow */}
-          {doc.status === 'extracted' && (
+          {hasPageData && (
             <span style={{
               fontSize: 12, color: '#6b7280',
               transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -88,7 +89,7 @@ function DocResultPanel({ doc }) {
 
         {/* Right side buttons */}
         <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
-          {doc.status === 'extracted' && (
+          {hasPageData && (
             <>
               <button
                 onClick={() => setShowImg(v => !v)}
@@ -100,6 +101,7 @@ function DocResultPanel({ doc }) {
               <button
                 onClick={() => navigate(`/document/${doc.id}`, {
                   state: {
+                    returnTo: '/batch',
                     doc,
                     result: {
                       doc_type: doc.doc_type,
@@ -133,7 +135,7 @@ function DocResultPanel({ doc }) {
       </div>
 
       {/* ── Annotated image ── */}
-      {showImg && doc.status === 'extracted' && (
+      {showImg && hasPageData && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
           {totalPages > 1 && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -170,7 +172,7 @@ function DocResultPanel({ doc }) {
       )}
 
       {/* ── Extracted fields (expanded) ── */}
-      {expanded && doc.status === 'extracted' && (
+      {expanded && hasPageData && (
         <div style={{ padding: '16px' }}>
 
           {/* Scalar fields */}
