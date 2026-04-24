@@ -1,7 +1,7 @@
 // src/components/BatchDashboard.jsx
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getBatchStatus, getBatchExportUrl, getPreviewUrl } from '../services/api'
+import { getBatchStatus, getBatchExportUrl, getPreviewUrl, stopBatch } from '../services/api'
 
 const STATUS_COLOR = {
   uploaded:   { bg: '#dbeafe33', border: '#93c5fd' },
@@ -280,6 +280,7 @@ export default function BatchDashboard({ batchId, initialDocs }) {
   const [batch, setBatch] = useState(null)
   const [docs, setDocs]   = useState(initialDocs || [])
   const intervalRef       = useRef(null)
+  const [stopLoading, setStopLoading] = useState(false)
 
   useEffect(() => {
     if (!batchId) return
@@ -289,7 +290,7 @@ export default function BatchDashboard({ batchId, initialDocs }) {
         const res = await getBatchStatus(batchId)
         setBatch(res.data.batch)
         setDocs(res.data.documents)
-        if (res.data.batch.status === 'done') {
+        if (['done', 'failed', 'done_with_errors', 'stopped'].includes(res.data.batch.status)) {
           clearInterval(intervalRef.current)
         }
       } catch (err) {
@@ -310,6 +311,19 @@ export default function BatchDashboard({ batchId, initialDocs }) {
   const succeeded  = docs.filter(d => d.status === 'extracted').length
   const failed     = docs.filter(d => d.status === 'error').length
   const inprogress = docs.filter(d => d.status === 'processing').length
+  const isRunning = ['processing', 'stopping'].includes(batch.status)
+
+  const handleStop = async () => {
+    setStopLoading(true)
+    try {
+      const res = await stopBatch(batchId)
+      setBatch(res.data.batch)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setStopLoading(false)
+    }
+  }
 
   return (
     <div style={{
@@ -327,14 +341,25 @@ export default function BatchDashboard({ batchId, initialDocs }) {
           <strong style={{ fontSize: 16 }}>Batch #{batchId}</strong>
           <span style={{
             marginLeft: 10, fontSize: 12, padding: '2px 8px', borderRadius: 20,
-            background: batch.status === 'done' ? '#dcfce7' : '#fef9c3',
-            color: batch.status === 'done' ? '#166534' : '#854d0e'
+            background: batch.status === 'done' ? '#dcfce7' : (batch.status === 'stopping' ? '#fee2e2' : '#fef9c3'),
+            color: batch.status === 'done' ? '#166534' : (batch.status === 'stopping' ? '#991b1b' : '#854d0e')
           }}>
-            {batch.status === 'done' ? 'Complete' : 'Processing...'}
+            {batch.status === 'done'
+              ? 'Complete'
+              : (batch.status === 'stopping' ? 'Stopping...' : 'Processing...')}
           </span>
         </div>
 
-        {batch.status === 'done' && (
+        {isRunning ? (
+          <button
+            onClick={handleStop}
+            disabled={stopLoading}
+            className="btn btn-danger"
+            style={{ padding: '6px 12px', opacity: stopLoading ? 0.7 : 1 }}
+          >
+            {stopLoading ? 'Stopping...' : 'Stop batch'}
+          </button>
+        ) : (
           <div style={{ display: 'flex', gap: 8 }}>
             <a href={getBatchExportUrl(batchId, 'csv')} download style={exportBtn('#166534')}>
               CSV

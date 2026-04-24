@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 from models.database import db, Document, ExtractionResult, Batch, BatchItem
 from services.batch_processor import start_batch
 import os, uuid, json, io, zipfile
+from datetime import datetime, timedelta
 
 batch_bp = Blueprint('batch', __name__)
 
@@ -57,8 +58,42 @@ def _serialize_batch_documents(batch_id):
 
 @batch_bp.route('/api/upload/batch', methods=['POST'])
 def upload_batch():
-    active_doc = Document.query.filter_by(status='processing').first()
-    if active_doc:
+    # Reconcile stale active batches that no longer have running documents.
+    candidate_batches = Batch.query.filter(Batch.status.in_(['processing', 'stopping'])).all()
+    for b in candidate_batches:
+        items = BatchItem.query.filter_by(batch_id=b.id).all()
+        doc_ids = [i.document_id for i in items]
+        running_docs = []
+        if doc_ids:
+            running_docs = Document.query.filter(
+                Document.id.in_(doc_ids),
+                Document.status.in_(['processing', 'uploaded'])
+            ).all()
+        if not running_docs:
+            b.status = 'stopped'
+
+    # Reconcile stale single-doc processing rows older than timeout window.
+    stale_cutoff = datetime.utcnow() - timedelta(
+        seconds=int(os.environ.get('BATCH_DOC_TIMEOUT_SECONDS', '600')) + 120
+    )
+    stale_single_docs = Document.query.filter(
+        Document.status == 'processing',
+        Document.batch_id.is_(None),
+        Document.uploaded_at < stale_cutoff
+    ).all()
+    for d in stale_single_docs:
+        d.status = 'error'
+        d.error_message = 'Marked stale and auto-recovered'
+
+    if candidate_batches or stale_single_docs:
+        db.session.commit()
+
+    active_batch = Batch.query.filter(Batch.status.in_(['processing', 'stopping'])).first()
+    active_single_doc = Document.query.filter(
+        Document.status == 'processing',
+        Document.batch_id.is_(None)
+    ).first()
+    if active_batch or active_single_doc:
         return jsonify({
             'error': 'A batch/document is already processing. Wait for completion before starting another batch.'
         }), 409
@@ -131,9 +166,53 @@ def batch_status(batch_id):
     })
 
 
+@batch_bp.route('/api/batch/<int:batch_id>/stop', methods=['POST'])
+def stop_batch(batch_id):
+    batch = Batch.query.get_or_404(batch_id)
+    if batch.status in {'done', 'failed', 'done_with_errors', 'stopped'}:
+        return jsonify({'stopped': False, 'message': 'Batch already finished', 'batch': batch.to_dict()}), 200
+
+    # Hard stop immediately: mark batch terminal and fail running docs.
+    batch.status = 'stopped'
+    items = BatchItem.query.filter_by(batch_id=batch_id).all()
+    doc_ids = [i.document_id for i in items]
+    if doc_ids:
+        processing_docs = Document.query.filter(
+            Document.id.in_(doc_ids),
+            Document.status.in_(['processing', 'uploaded'])
+        ).all()
+        for doc in processing_docs:
+            doc.status = 'error'
+            doc.error_message = 'Stopped by user'
+    db.session.commit()
+    return jsonify({'stopped': True, 'batch': batch.to_dict()}), 202
+
+
+@batch_bp.route('/api/batch/<int:batch_id>/force-stop', methods=['POST'])
+def force_stop_batch(batch_id):
+    batch = Batch.query.get_or_404(batch_id)
+    if batch.status in {'done', 'failed', 'done_with_errors', 'stopped'}:
+        return jsonify({'stopped': False, 'message': 'Batch already finished', 'batch': batch.to_dict()}), 200
+
+    batch.status = 'stopped'
+    items = BatchItem.query.filter_by(batch_id=batch_id).all()
+    doc_ids = [i.document_id for i in items]
+    if doc_ids:
+        running_docs = Document.query.filter(
+            Document.id.in_(doc_ids),
+            Document.status.in_(['processing', 'uploaded'])
+        ).all()
+        for doc in running_docs:
+            doc.status = 'error'
+            doc.error_message = 'Force-stopped by user'
+
+    db.session.commit()
+    return jsonify({'stopped': True, 'forced': True, 'batch': batch.to_dict()}), 202
+
+
 @batch_bp.route('/api/batch/active', methods=['GET'])
 def list_active_batches():
-    active_batches = Batch.query.filter(Batch.status != 'done').order_by(Batch.created_at.desc()).all()
+    active_batches = Batch.query.filter(Batch.status.in_(['processing', 'stopping'])).order_by(Batch.created_at.desc()).all()
     payload = []
     for batch in active_batches:
         payload.append({

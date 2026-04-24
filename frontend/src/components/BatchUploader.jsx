@@ -70,7 +70,7 @@ export default function BatchUploader({ onBatchStarted, disabled = false, disabl
         <p style={{ fontSize: 18, color: '#2563eb', margin: 0, fontWeight: 700 }}>
           {isDragActive
             ? 'Drop all files!'
-            : 'Drop 10–50 documents here for batch processing'}
+            : 'Upload documents to start batch extraction'}
         </p>
         <p style={{ fontSize: 13, color: '#93c5fd', margin: '8px 0 0' }}>
           All files will be processed automatically in the background

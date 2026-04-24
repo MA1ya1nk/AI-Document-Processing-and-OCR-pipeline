@@ -66,6 +66,12 @@ export const getBatchStatus = (batchId) =>
 export const getActiveBatches = () =>
   axios.get(`${BASE}/api/batch/active`)
 
+export const stopBatch = (batchId) =>
+  axios.post(`${BASE}/api/batch/${batchId}/stop`)
+
+export const forceStopBatch = (batchId) =>
+  axios.post(`${BASE}/api/batch/${batchId}/force-stop`)
+
 export const getBatchExportUrl = (batchId, format) =>
   `${BASE}/api/batch/${batchId}/export?format=${format}`
 
