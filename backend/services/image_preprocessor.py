@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import os
 
-def _pdf_pages_to_images(file_path):
+def _pdf_pages_to_images(file_path, zoom=2.0):
     try:
         import fitz  # PyMuPDF
     except ImportError:
@@ -13,7 +13,7 @@ def _pdf_pages_to_images(file_path):
     pages = []
     for i in range(len(pdf_doc)):
         page = pdf_doc[i]
-        mat = fitz.Matrix(2.0, 2.0)
+        mat = fitz.Matrix(zoom, zoom)
         pix = page.get_pixmap(matrix=mat)
         img_data = pix.tobytes("png")
         nparr = np.frombuffer(img_data, np.uint8)
@@ -25,7 +25,7 @@ def _pdf_pages_to_images(file_path):
     pdf_doc.close()
     return pages
 
-def load_image(file_path):
+def load_image(file_path, pdf_zoom=2.0):
     """Load image from disk. If PDF, convert first page to image first."""
     ext = file_path.rsplit('.', 1)[-1].lower()
 
@@ -34,7 +34,7 @@ def load_image(file_path):
             import fitz  # PyMuPDF
             pdf_doc = fitz.open(file_path)
             page = pdf_doc[0]  # take first page only
-            mat = fitz.Matrix(2.0, 2.0)  # zoom 2x for better OCR quality
+            mat = fitz.Matrix(pdf_zoom, pdf_zoom)  # zoom for OCR quality/speed tradeoff
             pix = page.get_pixmap(matrix=mat)
             img_data = pix.tobytes("png")
             pdf_doc.close()
@@ -104,11 +104,11 @@ def enhance_contrast(img):
     return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
 
-def preprocess(file_path, steps=None):
+def preprocess(file_path, steps=None, pdf_zoom=2.0):
     if steps is None:
         steps = ['deskew', 'denoise', 'enhance_contrast', 'binarize']
 
-    img = load_image(file_path)
+    img = load_image(file_path, pdf_zoom=pdf_zoom)
     steps_applied = []
 
     pipeline = {
@@ -126,7 +126,7 @@ def preprocess(file_path, steps=None):
     return img, steps_applied
 
 
-def preprocess_pages(file_path, steps=None):
+def preprocess_pages(file_path, steps=None, pdf_zoom=2.0):
     """Preprocess every page for PDFs; return single-page list for images."""
     ext = file_path.rsplit('.', 1)[-1].lower()
     if steps is None:
@@ -140,9 +140,9 @@ def preprocess_pages(file_path, steps=None):
     }
 
     if ext == 'pdf':
-        source_pages = _pdf_pages_to_images(file_path)
+        source_pages = _pdf_pages_to_images(file_path, zoom=pdf_zoom)
     else:
-        source_pages = [load_image(file_path)]
+        source_pages = [load_image(file_path, pdf_zoom=pdf_zoom)]
 
     processed_pages = []
     pages_steps = []

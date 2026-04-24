@@ -10,7 +10,7 @@ const FORMATS = [
 export default function ExportPanel({ docId }) {
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-      <span style={{ fontSize: 13, color: '#6b7280', alignSelf: 'center' }}>Export:</span>
+      <span style={{ fontSize: 13, color: '#64748b', alignSelf: 'center', fontWeight: 600 }}>Export:</span>
       {FORMATS.map(fmt => (
         <a
           key={fmt.key}
@@ -18,12 +18,13 @@ export default function ExportPanel({ docId }) {
           download
           style={{
             padding: '6px 14px',
-            borderRadius: 8,
+            borderRadius: 10,
             background: fmt.color,
             color: '#fff',
             fontSize: 13,
             textDecoration: 'none',
-            fontWeight: 500
+            fontWeight: 600,
+            boxShadow: '0 6px 16px rgba(15, 23, 42, 0.16)'
           }}
         >
           {fmt.label}

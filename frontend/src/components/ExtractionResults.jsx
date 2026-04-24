@@ -12,16 +12,19 @@ const CONF = {
 
 export default function ExtractionResults({ result, docId }) {
   const [tab, setTab] = useState('structured')
+  const detectionsList = Array.isArray(result.detections)
+    ? result.detections
+    : (result.detections?.pages || []).flat()
 
   const tabStyle = (active) => ({
-    padding: '6px 16px',
+    padding: '8px 16px',
     border: 'none',
-    borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
+    borderBottom: active ? '2px solid #1d4ed8' : '2px solid transparent',
     background: 'none',
     cursor: 'pointer',
     fontSize: 13,
-    color: active ? '#2563eb' : '#6b7280',
-    fontWeight: active ? 500 : 400
+    color: active ? '#1d4ed8' : '#64748b',
+    fontWeight: active ? 700 : 500
   })
 
   return (
@@ -47,14 +50,14 @@ export default function ExtractionResults({ result, docId }) {
       {tab === 'raw' && (
         <div>
           <div style={{
-            background: '#f8f8f8', borderRadius: 8,
+            background: '#f8fafc', borderRadius: 10,
             padding: 12, marginBottom: 12, fontSize: 13,
             whiteSpace: 'pre-wrap', lineHeight: 1.6, maxHeight: 200, overflowY: 'auto'
           }}>
             {result.full_text}
           </div>
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-            {result.detections.map((det, i) => (
+            {detectionsList.map((det, i) => (
               <div key={i} style={{
                 display: 'flex', justifyContent: 'space-between',
                 alignItems: 'center', padding: '5px 8px',

@@ -28,21 +28,22 @@ export default function DocumentUploader({ onUploaded }) {
     <div
       {...getRootProps()}
       style={{
-        border: '2px dashed #aaa',
-        borderRadius: 12,
-        padding: 48,
+        border: '2px dashed #93c5fd',
+        borderRadius: 16,
+        padding: 52,
         textAlign: 'center',
         cursor: 'pointer',
-        background: isDragActive ? '#f0f4ff' : '#fafafa',
-        transition: 'background 0.2s'
+        background: isDragActive ? '#dbeafe' : '#f8fbff',
+        transition: 'all 0.2s ease',
+        boxShadow: '0 8px 24px rgba(37,99,235,0.08)'
       }}
     >
       <input {...getInputProps()} />
       <ErrorMessage message={error} />
-      <p style={{ fontSize: 18, color: '#555', margin: 0 }}>
+      <p style={{ fontSize: 20, color: '#1e293b', margin: 0, fontWeight: 700 }}>
         {isDragActive ? 'Drop it!' : 'Drop documents here, or click to browse'}
       </p>
-      <p style={{ fontSize: 13, color: '#999', margin: '8px 0 0' }}>
+      <p style={{ fontSize: 13, color: '#64748b', margin: '10px 0 0' }}>
         Supports JPG, PNG, PDF
       </p>
     </div>

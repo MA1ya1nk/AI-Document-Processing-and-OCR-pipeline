@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { updateFields } from '../services/api'
 import ErrorMessage from './ErrorMessage'
 
@@ -14,6 +14,11 @@ function FieldRow({ fieldKey, data, onSave }) {
   const [value, setValue]     = useState(data?.value ?? '')
   const conf      = data?.confidence || 'medium'
   const corrected = data?.manually_corrected
+
+  useEffect(() => {
+    setValue(data?.value ?? '')
+    setEditing(false)
+  }, [data?.value])
 
   if (Array.isArray(data?.value)) return null
 
@@ -34,27 +39,21 @@ function FieldRow({ fieldKey, data, onSave }) {
             <input
               value={value}
               onChange={e => setValue(e.target.value)}
-              style={{
-                flex: 1, padding: '4px 8px', fontSize: 13,
-                border: '1px solid #d1d5db', borderRadius: 6, outline: 'none'
-              }}
+              className="field-input"
+              style={{ flex: 1, fontSize: 13, padding: '6px 8px', borderRadius: 8 }}
               autoFocus
             />
             <button
               onClick={() => { onSave(fieldKey, value); setEditing(false) }}
-              style={{
-                background: '#2563eb', color: '#fff', border: 'none',
-                borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12
-              }}
+              className="btn btn-primary"
+              style={{ padding: '6px 12px' }}
             >
               Save
             </button>
             <button
               onClick={() => { setValue(data?.value ?? ''); setEditing(false) }}
-              style={{
-                background: '#e5e7eb', color: '#374151', border: 'none',
-                borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12
-              }}
+              className="btn btn-slate"
+              style={{ padding: '6px 10px' }}
             >
               Cancel
             </button>
@@ -138,10 +137,16 @@ function TableField({ fieldKey, data }) {
   )
 }
 
-export default function StructuredFields({ docId, fields, schema }) {
+export default function StructuredFields({ docId, fields }) {
   const [localFields, setLocalFields] = useState(fields || {})
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
+
+  useEffect(() => {
+    setLocalFields(fields || {})
+    setError('')
+    setSaving(false)
+  }, [fields, docId])
 
   const handleSave = async (fieldKey, newValue) => {
     setError('')

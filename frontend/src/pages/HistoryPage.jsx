@@ -42,11 +42,13 @@ export default function HistoryPage() {
   const needsReview = documents.filter(d => d.status === 'uploaded').length
 
   return (
-    <div style={{ width: '100%', maxWidth: 900, margin: '0 auto', padding: '24px 20px', boxSizing: 'border-box' }}>
-      <h1 style={{ margin: '0 0 9px', lineHeight: 1.2 }}>Document history</h1>
-      <p style={{ color: '#6b7280', margin: '0 0 24px', fontSize: 14, lineHeight: 1.5 }}>
-        All uploaded documents and their extraction results
-      </p>
+    <div className="page-shell" style={{ maxWidth: 980 }}>
+      <div className="page-header">
+        <h1 className="page-title">Document history</h1>
+        <p className="page-subtitle">
+          All uploaded documents and their extraction results
+        </p>
+      </div>
 
       {/* Stats row */}
       <div style={{
@@ -59,8 +61,9 @@ export default function HistoryPage() {
           { label: 'Not yet extracted', value: needsReview, bg: '#fffbeb', color: '#92400e' },
         ].map(stat => (
           <div key={stat.label} style={{
-            background: stat.bg, borderRadius: 10,
-            padding: '14px 18px'
+            background: stat.bg, borderRadius: 14,
+            padding: '16px 18px',
+            border: '1px solid #dbeafe'
           }}>
             <p style={{ fontSize: 28, fontWeight: 600, margin: 0, color: stat.color }}>
               {stat.value}
@@ -74,7 +77,8 @@ export default function HistoryPage() {
 
       {/* Filter bar */}
       <div style={{
-        display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap'
+        display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', padding: 16,
+        border: '1px solid #e2e8f0', borderRadius: 14, background: '#fff'
       }}>
         <input
           placeholder="Search by filename..."
@@ -82,7 +86,7 @@ export default function HistoryPage() {
           onChange={e => setSearch(e.target.value)}
           style={{
             flex: 1, minWidth: 200, padding: '8px 12px',
-            border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13
+            border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 13
           }}
         />
         <select
@@ -139,8 +143,8 @@ export default function HistoryPage() {
 }
 
 const selectStyle = {
-  padding: '8px 10px', borderRadius: 8, fontSize: 13,
-  border: '1px solid #d1d5db', cursor: 'pointer',
+  padding: '8px 10px', borderRadius: 10, fontSize: 13,
+  border: '1px solid #cbd5e1', cursor: 'pointer',
   backgroundColor: '#fff', color: '#111827'
 }
 

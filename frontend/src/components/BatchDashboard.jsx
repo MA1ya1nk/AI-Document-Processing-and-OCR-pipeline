@@ -38,10 +38,11 @@ function DocResultPanel({ doc }) {
   return (
     <div style={{
       border: `1px solid ${colors.border}`,
-      borderRadius: 10,
+      borderRadius: 12,
       marginBottom: 12,
       overflow: 'hidden',
-      background: '#fff'
+      background: '#fff',
+      boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
     }}>
 
       {/* ── Header row ── */}
@@ -91,7 +92,8 @@ function DocResultPanel({ doc }) {
             <>
               <button
                 onClick={() => setShowImg(v => !v)}
-                style={smallBtn('#92400e')}
+                className="btn btn-amber"
+                style={{ padding: '6px 12px' }}
               >
                 {showImg ? 'Hide image' : 'Show image'}
               </button>
@@ -102,15 +104,20 @@ function DocResultPanel({ doc }) {
                     result: {
                       doc_type: doc.doc_type,
                       extracted_fields: doc.extracted_fields,
+                      page_results: doc.page_results || [],
+                      page_texts: doc.page_texts || [],
                       detections: doc.detections || [],
                       full_text: doc.raw_text || '',
                       preprocessing_steps: doc.preprocessing_steps || [],
-                      total_detections: doc.detections?.length || 0,
+                      total_detections: Array.isArray(doc.detections)
+                        ? doc.detections.length
+                        : (doc.detections?.pages || []).reduce((acc, page) => acc + (page?.length || 0), 0),
                       schema: null
                     }
                   }
                 })}
-                style={smallBtn('#0f766e')}
+                className="btn btn-teal"
+                style={{ padding: '6px 12px' }}
               >
                 Full review
               </button>
@@ -133,7 +140,8 @@ function DocResultPanel({ doc }) {
               <button
                 onClick={() => setPageIndex(p => Math.max(0, p - 1))}
                 disabled={pageIndex === 0}
-                style={smallBtn(pageIndex === 0 ? '#9ca3af' : '#475569')}
+                className="btn btn-slate"
+                style={{ opacity: pageIndex === 0 ? 0.65 : 1, padding: '6px 12px' }}
               >
                 Prev page
               </button>
@@ -143,7 +151,8 @@ function DocResultPanel({ doc }) {
               <button
                 onClick={() => setPageIndex(p => Math.min(totalPages - 1, p + 1))}
                 disabled={pageIndex >= totalPages - 1}
-                style={smallBtn(pageIndex >= totalPages - 1 ? '#9ca3af' : '#475569')}
+                className="btn btn-slate"
+                style={{ opacity: pageIndex >= totalPages - 1 ? 0.65 : 1, padding: '6px 12px' }}
               >
                 Next page
               </button>
@@ -302,8 +311,9 @@ export default function BatchDashboard({ batchId, initialDocs }) {
 
   return (
     <div style={{
-      border: '1px solid #e5e7eb', borderRadius: 12,
-      padding: 20, marginTop: 20, background: '#fff'
+      border: '1px solid #e2e8f0', borderRadius: 14,
+      padding: 20, marginTop: 20, background: '#fff',
+      boxShadow: '0 8px 24px rgba(15,23,42,0.07)'
     }}>
 
       {/* ── Batch header ── */}
@@ -368,10 +378,4 @@ const exportBtn = (color) => ({
   padding: '6px 14px', borderRadius: 8,
   fontSize: 12, textDecoration: 'none', fontWeight: 500,
   border: 'none', cursor: 'pointer'
-})
-
-const smallBtn = (bg) => ({
-  background: bg, color: '#fff', border: 'none',
-  borderRadius: 8, padding: '5px 12px',
-  cursor: 'pointer', fontSize: 12
 })

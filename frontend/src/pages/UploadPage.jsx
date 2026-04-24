@@ -7,21 +7,24 @@ export default function UploadPage() {
   const [documents, setDocuments] = useState([])
 
   const handleUploaded = (newDoc) => {
-    setDocuments(prev => [newDoc, ...prev])
+    // Keep only the latest upload visible on this page.
+    setDocuments([newDoc])
   }
 
   return (
-    <div style={{ maxWidth: 760, margin: '40px auto', padding: '0 20px' }}>
-      <h1 style={{ margin: '0 0 9px', lineHeight: 1.2 }}>Document Processor</h1>
-      <p style={{ color: '#6b7280', margin: '0 0 28px', fontSize: 14, lineHeight: 1.5 }}>
+    <div className="page-shell" style={{ maxWidth: 820 }}>
+      <div className="page-header">
+        <h1 className="page-title">Document Processor</h1>
+        <p className="page-subtitle">
         Upload images or PDFs — extract text with OCR and bounding box visualization.
-      </p>
+        </p>
+      </div>
 
       <DocumentUploader onUploaded={handleUploaded} />
 
       {documents.length > 0 && (
-        <div style={{ marginTop: 36 }}>
-          <h2 style={{ marginBottom: 16, fontSize: 18 }}>
+        <div style={{ marginTop: 28 }}>
+          <h2 style={{ marginBottom: 14, fontSize: 20 }}>
             Uploaded Documents ({documents.length})
           </h2>
           {documents.map(doc => (
@@ -31,7 +34,7 @@ export default function UploadPage() {
       )}
 
       {documents.length === 0 && (
-        <p style={{ textAlign: 'center', color: '#9ca3af', marginTop: 48 }}>
+        <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: 36 }}>
           No documents uploaded yet.
         </p>
       )}

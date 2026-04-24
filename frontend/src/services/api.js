@@ -17,6 +17,9 @@ export const classifyDocument = (docId) =>
 export const extractDocument = (docId, docType = null) =>
   axios.post(`${BASE}/api/extract/${docId}`, docType ? { doc_type: docType } : {})
 
+export const runOcrPreview = (docId) =>
+  axios.post(`${BASE}/api/ocr/${docId}`)
+
 export const getExtractStatus = (docId) =>
   axios.get(`${BASE}/api/extract/${docId}/status`)
 
@@ -31,6 +34,9 @@ export const getDocument = (docId) =>
 
 export const getPreviewUrl = (docId, page = 0) =>
   `${BASE}/api/documents/${docId}/preview?page=${page}&t=${Date.now()}`
+
+export const getPageImageUrl = (docId, page = 0) =>
+  `${BASE}/api/documents/${docId}/page-image?page=${page}&t=${Date.now()}`
 
 export const getExportUrl = (docId, format) =>
   `${BASE}/api/export/${docId}?format=${format}`
@@ -48,8 +54,8 @@ export const uploadBatch = (files) => {
   const form = new FormData()
   files.forEach(f => form.append('files', f))
   return axios.post(`${BASE}/api/upload/batch`, form, {
-    onUploadProgress: (e) => {
-      // e.loaded / e.total gives upload progress 0-1
+    onUploadProgress: () => {
+      // Hook kept for future progress UI.
     }
   })
 }

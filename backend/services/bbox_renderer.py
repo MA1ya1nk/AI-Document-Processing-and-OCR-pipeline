@@ -62,3 +62,14 @@ def draw_bboxes(image_path, detections, page=0):
     tmp = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
     img.save(tmp.name, 'JPEG', quality=90)
     return tmp.name
+
+
+def render_page_image(image_path, page=0):
+    """
+    Render the requested page/image as JPEG without annotations.
+    Useful for page-aligned preview in review UI.
+    """
+    img = _load_as_pil_image(image_path, page=page)
+    tmp = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
+    img.save(tmp.name, 'JPEG', quality=90)
+    return tmp.name

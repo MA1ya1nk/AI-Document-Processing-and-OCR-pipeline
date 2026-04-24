@@ -1,7 +1,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { classifyDocument, extractDocument, getExtractStatus } from '../services/api'
+import { classifyDocument, extractDocument, getExtractStatus, runOcrPreview } from '../services/api'
 import ExtractionResults from './ExtractionResults'
 import BboxPreview from './BboxPreview'
 import ExportPanel from './ExportPanel'
@@ -14,10 +14,10 @@ const DOC_TYPES = [
 ]
 
 const STATUS_STYLE = {
-  uploaded:   { bg: '#e0f2fe', color: '#0369a1' },
-  processing: { bg: '#fef9c3', color: '#854d0e' },
-  extracted:  { bg: '#dcfce7', color: '#166534' },
-  error:      { bg: '#fee2e2', color: '#991b1b' },
+  uploaded: 'status-uploaded',
+  processing: 'status-processing',
+  extracted: 'status-extracted',
+  error: 'status-error',
 }
 
 export default function DocumentCard({ doc }) {
@@ -28,8 +28,11 @@ export default function DocumentCard({ doc }) {
   const [result, setResult]         = useState(null)
   const [classifying, setClassifying] = useState(false)
   const [extracting, setExtracting]   = useState(false)
+  const [ocrLoading, setOcrLoading]   = useState(false)
   const [showBoxes, setShowBoxes]     = useState(false)
   const [error, setError]             = useState('')
+  const [ocrPreview, setOcrPreview]   = useState(null)
+  const [showOcrPanel, setShowOcrPanel] = useState(false)
 
   const applyExtractedResult = (payload) => {
     setResult(payload)
@@ -87,13 +90,24 @@ export default function DocumentCard({ doc }) {
     }
   }
 
+  const handleOcrPreview = async () => {
+    setError('')
+    setOcrLoading(true)
+    try {
+      const res = await runOcrPreview(doc.id)
+      setOcrPreview(res.data)
+      setShowOcrPanel(true)
+    } catch (err) {
+      setError('OCR preview failed: ' + (err.response?.data?.error || err.message))
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
   const badge = STATUS_STYLE[status] || STATUS_STYLE.uploaded
 
   return (
-    <div style={{
-      border: '1px solid #e5e7eb', borderRadius: 10,
-      padding: 16, marginBottom: 14
-    }}>
+    <div className="card" style={{ marginBottom: 14 }}>
       <ErrorMessage message={error} />
 
       {/* Top row */}
@@ -101,17 +115,11 @@ export default function DocumentCard({ doc }) {
         <div style={{ flex: 1 }}>
           <strong style={{ fontSize: 15 }}>{doc.original_filename}</strong>
           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-            <span style={{
-              padding: '2px 10px', borderRadius: 20, fontSize: 12,
-              background: badge.bg, color: badge.color
-            }}>
+            <span className={`pill ${badge}`}>
               {status}
             </span>
             {docType && (
-              <span style={{
-                padding: '2px 10px', borderRadius: 20, fontSize: 12,
-                background: '#ede9fe', color: '#5b21b6'
-              }}>
+              <span className="pill doc-type-pill">
                 {docType.replace('_', ' ')}
               </span>
             )}
@@ -120,7 +128,7 @@ export default function DocumentCard({ doc }) {
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {/* Classify */}
-          <button onClick={handleClassify} disabled={classifying} style={btn('#6d28d9')}>
+          <button onClick={handleClassify} disabled={classifying} className="btn btn-violet">
             {classifying ? 'Classifying...' : 'Classify'}
           </button>
 
@@ -128,10 +136,7 @@ export default function DocumentCard({ doc }) {
           <select
             value={typeOverride}
             onChange={e => setOverride(e.target.value)}
-            style={{
-              padding: '6px 10px', borderRadius: 8, fontSize: 13,
-              border: '1px solid #d1d5db', cursor: 'pointer'
-            }}
+            className="field-select"
           >
             <option value=''>Auto type</option>
             {DOC_TYPES.map(t => (
@@ -139,16 +144,25 @@ export default function DocumentCard({ doc }) {
             ))}
           </select>
 
+          <button onClick={handleOcrPreview} disabled={ocrLoading} className="btn btn-violet">
+            {ocrLoading ? 'Reading OCR...' : 'Preview OCR text'}
+          </button>
+
           {/* Extract */}
-          <button onClick={handleExtract} disabled={extracting} style={btn('#2563eb')}>
-            {extracting ? 'Extracting...' : 'Extract'}
+          <button
+            onClick={handleExtract}
+            disabled={extracting || !ocrPreview}
+            className="btn btn-primary"
+            title={!ocrPreview ? 'Preview OCR text first' : 'Run structured extraction with LLM'}
+          >
+            {extracting ? 'Extracting...' : 'Extract with LLM'}
           </button>
 
           {/* Review page */}
           {result && (
             <button
               onClick={() => navigate(`/document/${doc.id}`, { state: { result, doc: { ...doc, doc_type: docType } } })}
-              style={btn('#0f766e')}
+              className="btn btn-teal"
             >
               Review
             </button>
@@ -156,12 +170,53 @@ export default function DocumentCard({ doc }) {
 
           {/* Toggle bbox */}
           {result && (
-            <button onClick={() => setShowBoxes(v => !v)} style={btn('#92400e')}>
+            <button onClick={() => setShowBoxes(v => !v)} className="btn btn-amber">
               {showBoxes ? 'Hide boxes' : 'Show boxes'}
             </button>
           )}
         </div>
       </div>
+
+      {showOcrPanel && ocrPreview && (
+        <div style={{
+          marginTop: 14,
+          border: '1px solid #c7d2fe',
+          borderRadius: 12,
+          background: 'linear-gradient(180deg, #f8faff 0%, #ffffff 100%)',
+          padding: 14
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e3a8a' }}>
+                EasyOCR preview
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
+                {ocrPreview.total_detections || 0} text regions detected
+              </p>
+            </div>
+            <button
+              className="btn btn-ghost"
+              onClick={() => setShowOcrPanel(v => !v)}
+              style={{ fontSize: 12, padding: '5px 10px' }}
+            >
+              {showOcrPanel ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          <div style={{
+            maxHeight: 180,
+            overflowY: 'auto',
+            border: '1px solid #e2e8f0',
+            borderRadius: 10,
+            background: '#f8fafc',
+            padding: 10,
+            fontSize: 13,
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap'
+          }}>
+            {ocrPreview.full_text || 'No OCR text detected.'}
+          </div>
+        </div>
+      )}
 
       {/* Extraction results */}
       {result && <ExtractionResults result={result} docId={doc.id} />}
@@ -170,9 +225,3 @@ export default function DocumentCard({ doc }) {
     </div>
   )
 }
-
-const btn = (bg) => ({
-  background: bg, color: '#fff', border: 'none',
-  borderRadius: 8, padding: '7px 13px',
-  cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap'
-})

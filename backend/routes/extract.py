@@ -5,7 +5,7 @@ from services.image_preprocessor import preprocess, preprocess_pages
 from services.ocr_engine import extract_text, get_full_text, extract_text_pages, get_full_text_pages
 from services.document_classifier import classify_document
 from services.vision_extractor import extract_fields, extract_fields_pages
-from services.bbox_renderer import draw_bboxes
+from services.bbox_renderer import draw_bboxes, render_page_image
 from services.export_service import to_json, to_csv_string, to_excel_bytes
 import os, json, io, threading, traceback
 
@@ -30,6 +30,30 @@ def _build_extraction_response(doc_id, doc_type, classification, full_text, page
             if isinstance(detections, dict)
             else len(detections)
         )
+    }
+
+
+def _run_ocr_pipeline(file_path):
+    ext = file_path.rsplit('.', 1)[-1].lower()
+    if ext == 'pdf':
+        preprocessed_pages, pages_steps = preprocess_pages(file_path)
+        detections_pages = extract_text_pages(preprocessed_pages)
+        page_texts, full_text = get_full_text_pages(detections_pages)
+        return {
+            'full_text': full_text,
+            'page_texts': page_texts,
+            'detections': {'pages': detections_pages},
+            'preprocessing_steps': {'pages': pages_steps}
+        }
+
+    preprocessed_img, steps_list = preprocess(file_path)
+    detections_list = extract_text(preprocessed_img)
+    full_text = get_full_text(detections_list)
+    return {
+        'full_text': full_text,
+        'page_texts': [full_text],
+        'detections': detections_list,
+        'preprocessing_steps': steps_list
     }
 
 
@@ -71,19 +95,11 @@ def _run_extraction_pipeline(app, doc_id, override_type=None):
             return
         try:
             ext = doc.file_path.rsplit('.', 1)[-1].lower()
-            if ext == 'pdf':
-                preprocessed_pages, pages_steps = preprocess_pages(doc.file_path)
-                detections_pages = extract_text_pages(preprocessed_pages)
-                page_texts, full_text = get_full_text_pages(detections_pages)
-                detections = {"pages": detections_pages}
-                steps = {"pages": pages_steps}
-            else:
-                preprocessed_img, steps_list = preprocess(doc.file_path)
-                detections_list = extract_text(preprocessed_img)
-                full_text = get_full_text(detections_list)
-                detections = detections_list
-                steps = steps_list
-                page_texts = [full_text]
+            ocr_data = _run_ocr_pipeline(doc.file_path)
+            full_text = ocr_data['full_text']
+            page_texts = ocr_data['page_texts']
+            detections = ocr_data['detections']
+            steps = ocr_data['preprocessing_steps']
 
             classification = None
             if override_type:
@@ -200,6 +216,29 @@ def extract(doc_id):
     }), 202
 
 
+@extract_bp.route('/api/ocr/<int:doc_id>', methods=['POST'])
+def ocr_preview(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    try:
+        ocr_data = _run_ocr_pipeline(doc.file_path)
+        detections = ocr_data['detections']
+        return jsonify({
+            'document_id': doc_id,
+            'status': 'ready',
+            'full_text': ocr_data['full_text'],
+            'page_texts': ocr_data['page_texts'],
+            'detections': detections,
+            'preprocessing_steps': ocr_data['preprocessing_steps'],
+            'total_detections': (
+                sum(len(p) for p in detections.get('pages', []))
+                if isinstance(detections, dict)
+                else len(detections)
+            )
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @extract_bp.route('/api/extract/<int:doc_id>/status', methods=['GET'])
 def extract_status(doc_id):
     doc = Document.query.get_or_404(doc_id)
@@ -265,6 +304,14 @@ def preview_with_bboxes(doc_id):
         page_detections = detections_payload
     annotated_path = draw_bboxes(doc.file_path, page_detections, page=page)
     return send_file(annotated_path, mimetype='image/jpeg')
+
+
+@extract_bp.route('/api/documents/<int:doc_id>/page-image', methods=['GET'])
+def preview_page_image(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    page = request.args.get('page', default=0, type=int)
+    page_image_path = render_page_image(doc.file_path, page=page)
+    return send_file(page_image_path, mimetype='image/jpeg')
 
 
 @extract_bp.route('/api/export/<int:doc_id>', methods=['GET'])

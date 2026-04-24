@@ -7,7 +7,6 @@ import ErrorMessage from './ErrorMessage'
 export default function BatchUploader({ onBatchStarted }) {
   const [files, setFiles]     = useState([])
   const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
 
   const onDrop = useCallback((accepted) => {
@@ -23,11 +22,7 @@ export default function BatchUploader({ onBatchStarted }) {
   const handleUpload = async () => {
     if (!files.length) return
     setUploading(true)
-    setUploadProgress(0)
     setError('')
-
-    const form = new FormData()
-    files.forEach(f => form.append('files', f))
 
     try {
       const res = await uploadBatch(files)
@@ -47,15 +42,16 @@ export default function BatchUploader({ onBatchStarted }) {
         {...getRootProps()}
         style={{
           border: '2px dashed #93c5fd',
-          borderRadius: 12,
-          padding: 32,
+          borderRadius: 16,
+          padding: 36,
           textAlign: 'center',
           cursor: 'pointer',
-          background: isDragActive ? '#eff6ff' : '#f8faff'
+          background: isDragActive ? '#dbeafe' : '#f8faff',
+          boxShadow: '0 8px 24px rgba(37,99,235,0.08)'
         }}
       >
         <input {...getInputProps()} />
-        <p style={{ fontSize: 16, color: '#3b82f6', margin: 0 }}>
+        <p style={{ fontSize: 18, color: '#2563eb', margin: 0, fontWeight: 700 }}>
           {isDragActive
             ? 'Drop all files!'
             : 'Drop 10–50 documents here for batch processing'}
@@ -66,7 +62,7 @@ export default function BatchUploader({ onBatchStarted }) {
       </div>
 
       {files.length > 0 && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 14 }} className="card">
           <p style={{ fontSize: 13, color: '#374151' }}>
             {files.length} file{files.length > 1 ? 's' : ''} selected:
           </p>
@@ -86,12 +82,8 @@ export default function BatchUploader({ onBatchStarted }) {
           <button
             onClick={handleUpload}
             disabled={uploading}
-            style={{
-              marginTop: 10, background: uploading ? '#93c5fd' : '#2563eb',
-              color: '#fff', border: 'none', borderRadius: 8,
-              padding: '8px 20px', cursor: uploading ? 'not-allowed' : 'pointer',
-              fontSize: 14
-            }}
+            className="btn btn-primary"
+            style={{ marginTop: 10, fontSize: 14 }}
           >
             {uploading ? 'Uploading...' : `Process ${files.length} documents`}
           </button>

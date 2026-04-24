@@ -2,22 +2,24 @@
 import { NavLink } from 'react-router-dom'
 
 const linkStyle = ({ isActive }) => ({
-  padding: '6px 14px', borderRadius: 8,
+  padding: '8px 14px', borderRadius: 10,
   textDecoration: 'none', fontSize: 14,
-  fontWeight: isActive ? 500 : 400,
-  background: isActive ? '#eff6ff' : 'transparent',
-  color: isActive ? '#2563eb' : '#4b5563'
+  fontWeight: isActive ? 600 : 500,
+  background: isActive ? '#dbeafe' : 'transparent',
+  color: isActive ? '#1d4ed8' : '#64748b'
 })
 
 export default function Navbar() {
   return (
     <nav style={{
-      borderBottom: '1px solid #e5e7eb',
-      padding: '12px 24px',
+      borderBottom: '1px solid #e2e8f0',
+      padding: '14px 24px',
       display: 'flex', alignItems: 'center', gap: 8,
-      background: '#fff', position: 'sticky', top: 0, zIndex: 10
+      background: 'rgba(255,255,255,0.88)',
+      backdropFilter: 'blur(10px)',
+      position: 'sticky', top: 0, zIndex: 10
     }}>
-      <span style={{ fontWeight: 600, fontSize: 16, marginRight: 16, color: '#111827' }}>
+      <span style={{ fontWeight: 700, fontSize: 16, marginRight: 16, color: '#0f172a' }}>
         DocProcessor
       </span>
       <NavLink to='/'        style={linkStyle}>Upload</NavLink>

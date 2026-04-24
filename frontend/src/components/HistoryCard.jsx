@@ -6,10 +6,10 @@ import ExportPanel from './ExportPanel'
 import ErrorMessage from './ErrorMessage'
 
 const STATUS_STYLE = {
-  uploaded:   { bg: '#e0f2fe', color: '#0369a1' },
-  processing: { bg: '#fef9c3', color: '#854d0e' },
-  extracted:  { bg: '#dcfce7', color: '#166534' },
-  error:      { bg: '#fee2e2', color: '#991b1b' },
+  uploaded: 'status-uploaded',
+  processing: 'status-processing',
+  extracted: 'status-extracted',
+  error: 'status-error',
 }
 
 const TYPE_ICONS = {
@@ -21,7 +21,7 @@ const TYPE_ICONS = {
 
 const formatUtcTimestamp = (isoLike) => {
   if (!isoLike) return ''
-  const hasTimezone = /([zZ]|[+\-]\d{2}:\d{2})$/.test(isoLike)
+  const hasTimezone = /([zZ]|[+-]\d{2}:\d{2})$/.test(isoLike)
   const normalized = hasTimezone ? isoLike : `${isoLike}Z`
   const parsed = new Date(normalized)
   return Number.isNaN(parsed.getTime()) ? String(isoLike) : parsed.toLocaleString()
@@ -54,8 +54,12 @@ export default function HistoryCard({ doc, onDeleted }) {
           extracted_fields: doc.extracted_fields,
           detections: doc.detections,
           full_text: doc.raw_text,
+          page_texts: doc.page_texts || [],
+          page_results: doc.page_results || [],
           preprocessing_steps: doc.preprocessing_steps,
-          total_detections: doc.detections?.length || 0,
+          total_detections: Array.isArray(doc.detections)
+            ? doc.detections.length
+            : ((doc.detections?.pages || []).reduce((sum, page) => sum + page.length, 0)),
           schema: null
         }
       }
@@ -70,17 +74,7 @@ export default function HistoryCard({ doc, onDeleted }) {
     : []
 
   return (
-    <div style={{
-      border: '1px solid #e5e7eb',
-      borderRadius: 10,
-      padding: 16,
-      background: '#fff',
-      display: 'flex',
-      width: '100%',
-      boxSizing: 'border-box',
-      gap: 16,
-      alignItems: 'flex-start'
-    }}>
+    <div className="card" style={{ display: 'flex', width: '100%', gap: 16, alignItems: 'flex-start' }}>
       {/* Icon */}
       <div style={{
         width: 48, height: 48, borderRadius: 10,
@@ -101,17 +95,11 @@ export default function HistoryCard({ doc, onDeleted }) {
           }}>
             {doc.original_filename}
           </strong>
-          <span style={{
-            padding: '2px 8px', borderRadius: 20, fontSize: 11,
-            background: badge.bg, color: badge.color
-          }}>
+          <span className={`pill ${badge}`}>
             {doc.status}
           </span>
           {doc.doc_type && (
-            <span style={{
-              padding: '2px 8px', borderRadius: 20, fontSize: 11,
-              background: '#ede9fe', color: '#5b21b6'
-            }}>
+            <span className="pill doc-type-pill">
               {doc.doc_type.replace('_', ' ')}
             </span>
           )}
@@ -146,20 +134,14 @@ export default function HistoryCard({ doc, onDeleted }) {
       {/* Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
         {doc.has_extraction && (
-          <button onClick={handleReview} style={btn('#2563eb')}>
+          <button onClick={handleReview} className="btn btn-primary">
             Review
           </button>
         )}
-        <button onClick={handleDelete} style={btn('#dc2626')}>
+        <button onClick={handleDelete} className="btn btn-danger">
           Delete
         </button>
       </div>
     </div>
   )
 }
-
-const btn = (bg) => ({
-  background: bg, color: '#fff', border: 'none',
-  borderRadius: 8, padding: '6px 14px',
-  cursor: 'pointer', fontSize: 12
-})
