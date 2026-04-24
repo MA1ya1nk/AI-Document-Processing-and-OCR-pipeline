@@ -1,0 +1,10 @@
+{
+    "doc_type": "form",
+    "fields": [
+      { "key": "form_title",    "label": "Form title",    "type": "string" },
+      { "key": "field_pairs",   "label": "Field pairs",   "type": "table",
+        "columns": ["label", "value"] },
+      { "key": "checkboxes",    "label": "Checkboxes",    "type": "table",
+        "columns": ["label", "checked"] }
+    ]
+  }

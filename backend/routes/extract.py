@@ -1,0 +1,339 @@
+
+from flask import Blueprint, jsonify, send_file, request, current_app
+from models.database import db, Document, ExtractionResult
+from services.image_preprocessor import preprocess, preprocess_pages
+from services.ocr_engine import extract_text, get_full_text, extract_text_pages, get_full_text_pages
+from services.document_classifier import classify_document
+from services.vision_extractor import extract_fields, extract_fields_pages
+from services.bbox_renderer import draw_bboxes, render_page_image
+from services.export_service import to_json, to_csv_string, to_excel_bytes
+import os, json, io, threading, traceback
+
+extract_bp = Blueprint('extract', __name__)
+
+
+def _build_extraction_response(doc_id, doc_type, classification, full_text, page_texts, detections, structured_fields, page_results, schema, steps):
+    return {
+        'document_id': doc_id,
+        'doc_type': doc_type,
+        'classification': classification,
+        'status': 'extracted',
+        'full_text': full_text,
+        'page_texts': page_texts,
+        'detections': detections,
+        'extracted_fields': structured_fields,
+        'page_results': page_results,
+        'schema': schema,
+        'preprocessing_steps': steps,
+        'total_detections': (
+            sum(len(p) for p in detections.get('pages', []))
+            if isinstance(detections, dict)
+            else len(detections)
+        )
+    }
+
+
+def _run_ocr_pipeline(file_path):
+    ext = file_path.rsplit('.', 1)[-1].lower()
+    if ext == 'pdf':
+        preprocessed_pages, pages_steps = preprocess_pages(file_path)
+        detections_pages = extract_text_pages(preprocessed_pages)
+        page_texts, full_text = get_full_text_pages(detections_pages)
+        return {
+            'full_text': full_text,
+            'page_texts': page_texts,
+            'detections': {'pages': detections_pages},
+            'preprocessing_steps': {'pages': pages_steps}
+        }
+
+    preprocessed_img, steps_list = preprocess(file_path)
+    detections_list = extract_text(preprocessed_img)
+    full_text = get_full_text(detections_list)
+    return {
+        'full_text': full_text,
+        'page_texts': [full_text],
+        'detections': detections_list,
+        'preprocessing_steps': steps_list
+    }
+
+
+def _parse_extraction_row(result_row):
+    extracted_payload = json.loads(result_row.extracted_fields or '{}')
+    raw_payload = json.loads(result_row.raw_text or '{}') if (result_row.raw_text or '').startswith('{') else {'full_text': result_row.raw_text or '', 'pages': []}
+    detections = json.loads(result_row.detections or '[]')
+    steps = json.loads(result_row.preprocessing_steps or '[]')
+    if isinstance(extracted_payload, dict) and 'document' in extracted_payload:
+        structured_fields = extracted_payload.get('document') or {}
+        page_results = extracted_payload.get('pages') or []
+    else:
+        structured_fields = extracted_payload
+        page_results = [{
+            'page_index': 0,
+            'ocr_text': raw_payload.get('full_text', ''),
+            'extracted_fields': structured_fields
+        }]
+    return {
+        'full_text': raw_payload.get('full_text', ''),
+        'page_texts': raw_payload.get('pages', []),
+        'detections': detections,
+        'extracted_fields': structured_fields,
+        'page_results': page_results,
+        'schema': None,
+        'preprocessing_steps': steps,
+        'total_detections': (
+            sum(len(p) for p in detections.get('pages', []))
+            if isinstance(detections, dict)
+            else len(detections)
+        )
+    }
+
+
+def _run_extraction_pipeline(app, doc_id, override_type=None):
+    with app.app_context():
+        doc = Document.query.get(doc_id)
+        if not doc:
+            return
+        try:
+            ext = doc.file_path.rsplit('.', 1)[-1].lower()
+            ocr_data = _run_ocr_pipeline(doc.file_path)
+            full_text = ocr_data['full_text']
+            page_texts = ocr_data['page_texts']
+            detections = ocr_data['detections']
+            steps = ocr_data['preprocessing_steps']
+
+            classification = None
+            if override_type:
+                doc.doc_type = override_type
+            elif not doc.doc_type:
+                classification = classify_document(doc.file_path)
+                doc.doc_type = classification['doc_type']
+
+            if ext == 'pdf':
+                structured_fields, schema, page_results = extract_fields_pages(
+                    doc.file_path,
+                    doc.doc_type,
+                    ocr_text_pages=page_texts,
+                    ocr_raw_text=full_text,
+                )
+            else:
+                structured_fields, schema = extract_fields(
+                    doc.file_path,
+                    doc.doc_type,
+                    ocr_raw_text=full_text
+                )
+                page_results = [{
+                    "page_index": 0,
+                    "ocr_text": full_text,
+                    "extracted_fields": structured_fields,
+                }]
+
+            existing = ExtractionResult.query.filter_by(document_id=doc_id).first()
+            if existing:
+                existing.raw_text = json.dumps({"full_text": full_text, "pages": page_texts})
+                existing.detections = json.dumps(detections)
+                existing.preprocessing_steps = json.dumps(steps)
+                existing.extracted_fields = json.dumps({
+                    "document": structured_fields,
+                    "pages": page_results
+                })
+            else:
+                result_row = ExtractionResult(
+                    document_id=doc_id,
+                    raw_text=json.dumps({"full_text": full_text, "pages": page_texts}),
+                    detections=json.dumps(detections),
+                    preprocessing_steps=json.dumps(steps),
+                    extracted_fields=json.dumps({
+                        "document": structured_fields,
+                        "pages": page_results
+                    })
+                )
+                db.session.add(result_row)
+
+            doc.status = 'extracted'
+            doc.error_message = None
+            db.session.commit()
+        except Exception as e:
+            print("\n" + "="*60)
+            print(f"❌ EXTRACTION ERROR doc_id={doc_id}")
+            print(f"   Type: {type(e).__name__}")
+            print(f"   Message: {str(e)}")
+            print("   Traceback:")
+            print(traceback.format_exc())
+            print("="*60 + "\n")
+            doc.status = 'error'
+            doc.error_message = str(e)
+            db.session.commit()
+
+
+@extract_bp.route('/api/classify/<int:doc_id>', methods=['POST'])
+def classify(doc_id):
+    """Step 1: just classify the document type."""
+    doc = Document.query.get_or_404(doc_id)
+    try:
+        result = classify_document(doc.file_path)
+        doc.doc_type = result['doc_type']
+        db.session.commit()
+        return jsonify({
+            'document_id': doc_id,
+            'doc_type': result['doc_type'],
+            'confidence': result['confidence'],
+            'reasoning': result['reasoning']
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@extract_bp.route('/api/extract/<int:doc_id>', methods=['POST'])
+def extract(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    body = request.get_json(silent=True) or {}
+    override_type = body.get('doc_type')
+    if doc.status == 'processing':
+        return jsonify({
+            'document_id': doc_id,
+            'status': 'processing',
+            'message': 'Extraction is already in progress'
+        }), 202
+
+    doc.status = 'processing'
+    doc.error_message = None
+    if override_type:
+        doc.doc_type = override_type
+    db.session.commit()
+
+    app = current_app._get_current_object()
+    threading.Thread(
+        target=_run_extraction_pipeline,
+        args=(app, doc_id, override_type),
+        daemon=True
+    ).start()
+
+    return jsonify({
+        'document_id': doc_id,
+        'status': 'processing',
+        'doc_type': doc.doc_type,
+        'message': 'Extraction started in background'
+    }), 202
+
+
+@extract_bp.route('/api/ocr/<int:doc_id>', methods=['POST'])
+def ocr_preview(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    try:
+        ocr_data = _run_ocr_pipeline(doc.file_path)
+        detections = ocr_data['detections']
+        return jsonify({
+            'document_id': doc_id,
+            'status': 'ready',
+            'full_text': ocr_data['full_text'],
+            'page_texts': ocr_data['page_texts'],
+            'detections': detections,
+            'preprocessing_steps': ocr_data['preprocessing_steps'],
+            'total_detections': (
+                sum(len(p) for p in detections.get('pages', []))
+                if isinstance(detections, dict)
+                else len(detections)
+            )
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@extract_bp.route('/api/extract/<int:doc_id>/status', methods=['GET'])
+def extract_status(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    result_row = ExtractionResult.query.filter_by(document_id=doc_id).first()
+    response = {
+        'document_id': doc_id,
+        'status': doc.status,
+        'doc_type': doc.doc_type,
+        'error_message': doc.error_message,
+        'result': None
+    }
+    if doc.status == 'extracted' and result_row:
+        parsed = _parse_extraction_row(result_row)
+        response['result'] = _build_extraction_response(
+            doc_id=doc_id,
+            doc_type=doc.doc_type,
+            classification=None,
+            full_text=parsed['full_text'],
+            page_texts=parsed['page_texts'],
+            detections=parsed['detections'],
+            structured_fields=parsed['extracted_fields'],
+            page_results=parsed['page_results'],
+            schema=parsed['schema'],
+            steps=parsed['preprocessing_steps']
+        )
+    return jsonify(response)
+
+
+@extract_bp.route('/api/documents/<int:doc_id>/fields', methods=['PUT'])
+def update_fields(doc_id):
+    """Let the user correct extracted field values from the UI."""
+    body = request.get_json()
+    result_row = ExtractionResult.query.filter_by(document_id=doc_id).first_or_404()
+    payload = json.loads(result_row.extracted_fields or '{}')
+    fields = payload.get('document', payload) if isinstance(payload, dict) else {}
+
+    for key, new_value in body.items():
+        if key in fields:
+            fields[key]['value'] = new_value
+            fields[key]['manually_corrected'] = True
+
+    if isinstance(payload, dict) and 'document' in payload:
+        payload['document'] = fields
+        result_row.extracted_fields = json.dumps(payload)
+    else:
+        result_row.extracted_fields = json.dumps(fields)
+    db.session.commit()
+    return jsonify({'updated': True, 'fields': fields})
+
+
+@extract_bp.route('/api/documents/<int:doc_id>/preview', methods=['GET'])
+def preview_with_bboxes(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    result_row = ExtractionResult.query.filter_by(document_id=doc_id).first()
+    if not result_row:
+        return jsonify({'error': 'No extraction yet'}), 404
+    page = request.args.get('page', default=0, type=int)
+    detections_payload = json.loads(result_row.detections)
+    if isinstance(detections_payload, dict) and 'pages' in detections_payload:
+        pages = detections_payload.get('pages') or []
+        page_detections = pages[page] if 0 <= page < len(pages) else []
+    else:
+        page_detections = detections_payload
+    annotated_path = draw_bboxes(doc.file_path, page_detections, page=page)
+    return send_file(annotated_path, mimetype='image/jpeg')
+
+
+@extract_bp.route('/api/documents/<int:doc_id>/page-image', methods=['GET'])
+def preview_page_image(doc_id):
+    doc = Document.query.get_or_404(doc_id)
+    page = request.args.get('page', default=0, type=int)
+    page_image_path = render_page_image(doc.file_path, page=page)
+    return send_file(page_image_path, mimetype='image/jpeg')
+
+
+@extract_bp.route('/api/export/<int:doc_id>', methods=['GET'])
+def export_document(doc_id):
+    fmt = request.args.get('format', 'json')
+    doc = Document.query.get_or_404(doc_id)
+    result_row = ExtractionResult.query.filter_by(document_id=doc_id).first_or_404()
+
+    if fmt == 'json':
+        return jsonify(to_json(doc, result_row))
+
+    elif fmt == 'csv':
+        csv_str = to_csv_string(doc, result_row)
+        buf = io.BytesIO(csv_str.encode())
+        return send_file(buf, mimetype='text/csv',
+                         download_name=f'doc_{doc_id}.csv', as_attachment=True)
+
+    elif fmt == 'excel':
+        excel_bytes = to_excel_bytes(doc, result_row)
+        buf = io.BytesIO(excel_bytes)
+        return send_file(buf,
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         download_name=f'doc_{doc_id}.xlsx', as_attachment=True)
+
+    return jsonify({'error': 'Unknown format'}), 400
